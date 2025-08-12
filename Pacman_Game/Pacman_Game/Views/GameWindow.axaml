@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:Pacman_Game.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="Pacman_Game.Views.GameWindow"
+        Title="Pacman Game"
+        Width="800"
+        Height="700"
+        Background="#04041A"
+        Icon="avares://Pacman_Game/Assets/Pac-Man_icon.ico">
+
+	<Design.DataContext>
+		<vm:GameViewModel/>
+	</Design.DataContext>
+
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="*"/>
+		</Grid.RowDefinitions>
+
+		<Border Grid.Row="0" Background="#1A1A4A" Padding="10">
+			<StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+				<TextBlock Text="Score: " Foreground="White" FontSize="20" VerticalAlignment="Center" FontWeight="Bold"/>
+				<TextBlock Text="{Binding Score}" Foreground="#FFCC00" FontSize="20" VerticalAlignment="Center" FontWeight="Bold" Margin="5,0,20,0"/>
+				<TextBlock Text="Lives: " Foreground="White" FontSize="20" VerticalAlignment="Center" FontWeight="Bold"/>
+				<TextBlock Text="{Binding Lives}" Foreground="Red" FontSize="20" VerticalAlignment="Center" FontWeight="Bold" Margin="5,0"/>
+			</StackPanel>
+		</Border>
+
+		<Canvas Grid.Row="1" x:Name="GameCanvas" Width="560" Height="620" Background="#04041A" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+	</Grid>
+</Window>

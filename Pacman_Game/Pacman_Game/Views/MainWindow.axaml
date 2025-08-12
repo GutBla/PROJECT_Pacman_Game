@@ -1,0 +1,62 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Pacman_Game.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        x:Class="Pacman_Game.Views.MainWindow"
+        Title="Pacman"
+        Width="600"
+        Height="800"
+        Background="#0C0C44"
+        Icon="avares://Pacman_Game/Assets/Pac-Man_icon.ico">
+
+	<Design.DataContext>
+		<vm:MainViewModel/>
+	</Design.DataContext>
+
+	<Grid VerticalAlignment="Center">
+		<StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+			<Image Source="avares://Pacman_Game/Assets/Pac-Man_title.png"
+                   Width="400" Height="200"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,30"/>
+
+			<Button Command="{Binding StartGameCommand}"
+                    Content="Iniciar Juego"
+                    Width="200" Height="50"
+                    Background="#FFCC00" Foreground="Black"
+                    FontSize="16" FontWeight="Bold"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    HorizontalAlignment="Center"/>
+
+			<Button Command="{Binding HowToPlayCommand}"
+                    Content="Cómo Jugar"
+                    Width="200" Height="50"
+                    Background="#FFCC00" Foreground="Black"
+                    FontSize="16" FontWeight="Bold"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    HorizontalAlignment="Center"/>
+
+			<Button Command="{Binding HighScoresCommand}"
+                    Content="High Scores"
+                    Width="200" Height="50"
+                    Background="#FFCC00" Foreground="Black"
+                    FontSize="16" FontWeight="Bold"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    HorizontalAlignment="Center"/>
+
+			<Button Command="{Binding SettingsCommand}"
+                    Content="Configuración"
+                    Width="200" Height="50"
+                    Background="#FFCC00" Foreground="Black"
+                    FontSize="16" FontWeight="Bold"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    HorizontalAlignment="Center"/>
+		</StackPanel>
+	</Grid>
+</Window>

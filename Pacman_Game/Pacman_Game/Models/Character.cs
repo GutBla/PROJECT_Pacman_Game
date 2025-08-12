@@ -1,0 +1,39 @@
+﻿using System.ComponentModel;
+
+namespace Pacman_Game.Models
+{
+    public abstract class Character : INotifyPropertyChanged
+    {
+        private double x;
+        private double y;
+
+        public double X
+        {
+            get => x;
+            set
+            {
+                x = value;
+                OnPropertyChanged(nameof(X));
+            }
+        }
+
+        public double Y
+        {
+            get => y;
+            set
+            {
+                y = value;
+                OnPropertyChanged(nameof(Y));
+            }
+        }
+
+        public Direction CurrentDirection { get; set; } = Direction.Right;
+        public Direction NextDirection { get; set; } = Direction.Right;
+        public int Speed { get; protected set; } = 1;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected void OnPropertyChanged(string propertyName) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}

@@ -1,93 +1,324 @@
-# Project_Pacman_Game
+# Pac-Man Game
 
+[![PROJECT](https://img.shields.io/badge/-PROJECT-0d1117.svg?logo=googlekeep&style=popout&logoColor=white)](#)
+[![C#](https://img.shields.io/badge/-C%23-471396?logo=dotnet&logoColor=fff&style=popout)](#)
 
+![Portada_Pac_Man.png](Portada_Pac_Man.png)
 
-## Getting started
+## Descripción del Proyecto
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+El proyecto consiste en la recreación del clásico juego Pac-Man como una aplicación de escritorio. El objetivo principal es demostrar el manejo de componentes visuales, interacción mediante eventos, animación de entidades, actualización de estados y uso de archivos para guardar y cargar información. El jugador controla a Pac-Man, un personaje esférico amarillo, cuyo propósito es consumir todas las píldoras energizantes dentro de un laberinto mientras evita ser atrapado por los fantasmas.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### Características
 
-## Add your files
+- Control del personaje Pac-Man mediante teclado.
+- Movimiento restringido por las paredes del laberinto.
+- Inteligencia artificial para el movimiento de los fantasmas.
+- Consumo de píldoras y frutas que otorgan puntos y ventajas.
+- Sistema de puntuación con guardado en archivo.
+- Vidas limitadas y condiciones de finalización del juego.
+- Pantalla de inicio con menú interactivo y tabla de puntajes.
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+# ¿Qué es Pac-Man?
+
+Pac-Man es un videojuego de laberinto lanzado en 1980 por Namco. En él, el jugador controla a un personaje amarillo con forma de disco redondo cuyo objetivo principal es comer todos los puntos del laberinto mientras evita a cuatro fantasmas enemigos. Al consumir las “Power Pellets” (píldoras grandes), Pac-Man puede devorar a los fantasmas temporalmente para obtener puntos extra.
+
+Aunque sus gráficos en 8 bits y su mecánica parecen sencillos, Pac-Man destaca por su profundo diseño interno. Uno de los elementos más admirados es el comportamiento estratégico de los fantasmas, cada uno programado con una “personalidad” única a través de algoritmos específicos. Lejos de moverse al azar, sus acciones responden a reglas precisas, y en este documento exploraremos en detalle esos patrones de comportamiento, las decisiones de diseño y hasta errores de programación que, curiosamente, contribuyeron al encanto del juego.
+
+![PAC-MAN Guía rápida arcade.png](images/PAC-MAN_Gua_rpida_arcade.png)
+
+## Historia
+
+Pac-Man fue creado por Toru Iwatani con la intención de ofrecer un juego no violento y accesible para todos los públicos, especialmente pensado para atraer a las mujeres, algo poco común en la industria de los videojuegos de la época. Desde su lanzamiento, el juego se convirtió en un fenómeno cultural global, dando origen a secuelas, spin-offs y una enorme cantidad de merchandising. Su influencia ha perdurado, sirviendo de inspiración para generaciones de desarrolladores y jugadores.
+
+![Historia de pac-man.png](images/Historia_de_pac-man.png)
+
+## Mecánicas del Juego
+
+### Objetivo Principal
+
+El objetivo del juego es consumir todas las píldoras distribuidas en el laberinto. Estas incluyen píldoras pequeñas y super píldoras (o "Power Pellets"). Al comer una super píldora, Pac-Man obtiene temporalmente la capacidad de devorar fantasmas, quienes durante este estado cambian su color a azul y se vuelven vulnerables.
+
+El jugador controla a Pac-Man usando las flechas del teclado. El movimiento es continuo mientras la tecla esté presionada (evento KeyDown), y está limitado por las paredes del laberinto. La partida avanza conforme se limpian los niveles de píldoras.
+
+### Sistema de Acciones
+
+| Acción | Efecto | Puntaje |
+| --- | --- | --- |
+| Consumir píldora pequeña | Incrementa puntaje | +10 pts |
+| Consumir super píldora | Fantasmas vulnerables (azules) | +50 pts |
+| Comer fantasma (azul) | Fantasma vuelve a la base | +200 pts cada |
+| Consumir fruta | Vida extra / ralentiza fantasmas | Variable |
+| Colisión con fantasma | Pierde una vida | - |
+
+### Dinámica de Frutas
+
+Durante la partida, aparecen frutas especiales de forma aleatoria en el laberinto. Estas ofrecen beneficios temporales como vidas extra o ralentización de los fantasmas, además de aportar puntos adicionales. Su aparición es breve, por lo que deben recogerse rápidamente
+
+| Fruta | Puntos | Niveles | Efecto de juego |
+| --- | --- | --- | --- |
+| 🍒 Cereza | 100 | Nivel 1 | Otorga puntos extra |
+| 🍓 Fresa | 300 | Nivel 2 | Otorga puntos extra |
+| 🍊 Naranja | 500 | Niveles 3 y 4 | Otorga puntos extra |
+| 🍎 Manzana | 700 | Niveles 5 y 6 | Otorga puntos extra |
+| 🍈 Melón | 1 000 | Niveles 7 y 8 | Otorga puntos extra |
+| 👾 Galaxian | 2 000 | Niveles 9 y 10 | Tributo al juego *Galaxian* |
+| 🔔 Campana | 3 000 | Niveles 11 y 12 | Inspirada en *Mappy* (efecto de parálisis) |
+| 🗝️ Llave | 5 000 | Nivel 13 en adelante (13+) | Puntuación máxima disponible |
+
+## Personajes
+
+### Pac-Man
+
+![Pac-Man Personaje.png](images/Pac-Man_Personaje.png)
+
+Pac-Man es el protagonista del juego, controlado por el jugador. Es un círculo amarillo que se desplaza por el laberinto en las cuatro direcciones principales (arriba, abajo, izquierda y derecha). Su objetivo es consumir todas las píldoras y evitar a los fantasmas.
+
+**Velocidades de Pac-Man**
+
+| Nivel | Normal | Comiendo puntos | Modo “fright” | “Fright” comiendo puntos |
+| --- | --- | --- | --- | --- |
+| 1 | 80 % | ~71 % | 90 % | ~79 % |
+| 2 – 4 | 90 % | ~79 % | 95 % | ~83 % |
+| 5 – 20 | 100 % | ~87 % | 100 % | ~87 % |
+| 21+ | 90 % | ~79 % | — | — |
+
+> **Equivalencia absoluta:** 100 % ≃ 80 px/s; en Nivel 1, 80 % ≃ 64 px/s .
+> 
+
+### Fantasmas
+
+![Los Fantasmas de Pac-Man.png](images/Los_Fantasmas_de_Pac-Man.png)
+
+Los fantasmas son los antagonistas controlados por la inteligencia artificial del juego. Cada fantasma tiene una estrategia de movimiento única para hacer la persecución más dinámica y desafiante:
+
+| Fantasma | Estrategia | Descripción |
+| --- | --- | --- |
+| Blinky | Persigue directamente a Pac-Man | Sigue directamente a Pac-Man, siempre en su camino más corto. |
+| Pinky | Intenta posicionarse 4 casillas delante | Intenta posicionarse 4 casillas delante de Pac-Man, anticipando su movimiento. |
+| Inky | Usa la posición opuesta a Blinky para pinza | Su movimiento depende tanto de la posición de Pac-Man como de Blinky, resultando en patrones erráticos. |
+| Clyde | Movimiento aleatorio o persigue si cerca | Alterna entre perseguir a Pac-Man y moverse aleatoriamente, dependiendo de su proximidad. |
+
+Velocidades de los fantasmas
+
+| Nivel | Normal | “Fright” | En túnel |
+| --- | --- | --- | --- |
+| 1 | 75 % | 50 % | 40 % |
+| 2 – 4 | 85 % | 55 % | 45 % |
+| 5 – 20 | 95 % | 60 % | 50 % |
+| 21+ | 95 % | — | 50 % |
+
+> **Nota:** En modo “fright” los fantasmas corren más lentos y cambian de color tras comer una pastilla de poder, y en los túneles laterales su velocidad se reduce casi a la mitad.
+> 
+
+## Inteligencia Artificial
+
+### Comportamiento y Estados de los Fantasmas
+
+![Estados de Comportamiento de los Fantasmas.gif](images/Estados_de_Comportamiento_de_los_Fantasmas.gif)
+
+Los fantasmas alternan entre tres estados principales que definen su comportamiento en el juego:
+
+1. **Estado de Persecución (Chase):**
+    
+    Los fantasmas persiguen activamente a Pac-Man siguiendo patrones específicos que diferencian a cada uno, haciendo la persecución estratégica y dinámica.
+    
+2. **Estado de Dispersión (Scatter):**
+    
+    Los fantasmas se dirigen a su "esquina" asignada en el laberinto, dejando de perseguir a Pac-Man. Este estado brinda pausas temporales al jugador.
+    
+3. **Estado Asustado (Frightened):**
+    
+    Activado cuando Pac-Man consume una “Power Pellet”. Los fantasmas cambian a color azul, se mueven aleatoriamente y pueden ser devorados. La duración de este estado disminuye con el avance de niveles hasta desaparecer.
+    
+4. **Estado Comido (Eaten):**
+    
+    Los fantasmas se convierten en ojos y regresan a la casa central. Luego retoman su comportamiento anterior (scatter o chase).
+    
+
+> **Nota:** Al cambiar de estado, los fantasmas deben girar 180°, un detalle que el jugador puede aprovechar tácticamente.
+> 
+
+### Ciclo Temporal de Estados (segundos)
+
+| Estado | Nivel 1 | Niveles 2–4 | Nivel 5+ |
+| --- | --- | --- | --- |
+| Dispersión | 7 | 7 | 5 |
+| Persecución | 20 | 20 | 20 |
+| Dispersión | 7 | 7 | 5 |
+| Persecución | 20 | 20 | 20 |
+| Dispersión | 5 | 5 | 5 |
+| Persecución | 20 | 1033 | 1037 |
+| Dispersión | 5 | 0.017 | 0.017 |
+| Persecución | Indefinido | Indefinido | Indefinido |
+
+### Algoritmo de Movimiento de los Fantasmas
+
+Los fantasmas se mueven siguiendo un algoritmo basado en metas y evaluación de rutas dentro de una cuadrícula que representa el laberinto. Su movimiento se decide en los cruces, donde evalúan las opciones disponibles.
+
+### Pasos del Algoritmo
+
+1. **Evaluación de rutas posibles** desde la posición actual (excluyendo retroceso, salvo al cambiar de estado).
+2. **Cálculo de distancia euclidiana** entre cada ruta y la meta asignada según el fantasma y estado.
+3. **Selección del camino con menor distancia.**
+4. En caso de empate, se prioriza la dirección: **Arriba > Izquierda > Abajo > Derecha.**
+
+> **Nota:** Los fantasmas no pueden moverse hacia atrás (la dirección opuesta a la que están mirando), salvo al cambiar de estado.
+> 
+
+![Cálculo de Rutas de los Fantasmas en Pac-Man.gif](images/Clculo_de_Rutas_de_los_Fantasmas_en_Pac-Man.gif)
+
+### Patrones Individuales de Fantasmas
+
+Cada fantasma tiene un patrón único basado en una meta (objetivo) calculada según la posición de Pac-Man y otros factores, que define su estrategia y comportamiento en el juego.
+
+### Blinky (Fantasma Rojo)
+
+![Comportamiento Blinky (Rojo).gif](images/Comportamiento_Blinky_(Rojo).gif)
+
+- **Meta:** Posición exacta de Pac-Man.
+- **Comportamiento:** Agresivo y directo, persigue constantemente a Pac-Man.
+- **Fase especial “Elroy”:**
+    - Cuando quedan ≤ 20 bolitas, su velocidad aumenta.
+    - Con ≤ 10 bolitas, se vuelve aún más rápido, superando a Pac-Man en niveles avanzados.
+
+### Pinky (Fantasma Rosa)
+
+![Comportamiento Pinky (Rosa).gif](images/Comportamiento_Pinky_(Rosa).gif)
+
+- **Meta:** Cuatro casillas adelante de la dirección hacia donde mira Pac-Man.
+- **Error de programación:** Si Pac-Man mira hacia arriba, la meta se desplaza cuatro casillas a la izquierda debido a un desbordamiento del procesador Z80.
+- **Estrategia:** Busca emboscar a Pac-Man anticipando su movimiento frontal.
+- **Nota:** Fácil de manipular por jugadores expertos debido a su predictibilidad.
+
+### Inky (Fantasma Azul)
+
+![Comportamiento Inky (Cian).gif](images/Comportamiento_Inky_(Cian).gif)
+
+- **Meta:** Punto calculado en función de la posición de Pac-Man y Blinky:
+    1. Se ubica un punto dos casillas frente a Pac-Man.
+    2. Se traza un vector desde Blinky hacia ese punto y se extiende igual distancia en sentido contrario.
+- **Resultado:** Movimiento errático e impredecible, depende de la cercanía a Blinky.
+
+### Clyde (Fantasma Naranja)
+
+![Comportamiento Clyde (Naranja).gif](images/Comportamiento_Clyde_(Naranja).gif)
+
+- **Meta:** Posición de Pac-Man si está a más de 8 casillas.
+- **Comportamiento:**
+    - Si está a 8 casillas o menos, se retira a su esquina asignada.
+    - Oscila entre persecución y dispersión, dificultando predecir sus movimientos.
+- **Estrategia:** Más fácil de evadir que otros fantasmas.
+
+## Elementos del Juego
+
+![Imagen_Mapa_Pacman.png](images/Imagen_Mapa_Pacman.png)
+
+### Diseño y Estructura del Tablero
+
+El tablero de Pac-Man está compuesto por un laberinto fijo, diseñado sobre una cuadrícula, que incluye:
+
+- **Paredes:** Obstáculos que delimitan el recorrido y bloquean el paso tanto de Pac-Man como de los fantasmas.
+- **Puntos pequeños:** Distribuidos uniformemente para que Pac-Man los consuma.
+- **Super píldoras:** Puntos grandes ubicados en posiciones estratégicas, que al ser consumidos activan el estado asustado de los fantasmas.
+- **Frutas (opcional):** Aparecen aleatoriamente para otorgar puntos extra o efectos especiales.
+
+Este laberinto constituye el espacio donde se desarrollan todas las interacciones y la lógica del juego.
+
+```csharp
+int[,] pacmanMap = new int[,]
+{
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
+    {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
+    {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1},
+    {1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
+    {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
+    {1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1},
+    {1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1},
+    {1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1},
+    {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+};
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/jala-university1/cohort-4/oficial-es-programaci-n-3-cspr-231.ga.t2.25.m1/secci-n-e/capstone/agutierrez/project_pacman_game.git
-git branch -M main
-git push -uf origin main
-```
 
-## Integrate with your tools
+### Escondite Secreto (Zona de Inmunidad)
 
-- [ ] [Set up project integrations](https://gitlab.com/jala-university1/cohort-4/oficial-es-programaci-n-3-cspr-231.ga.t2.25.m1/secci-n-e/capstone/agutierrez/project_pacman_game/-/settings/integrations)
+En el diseño del mapa existen ubicaciones específicas donde Pac-Man puede evadir a los fantasmas bajo ciertas condiciones:
 
-## Collaborate with your team
+- Zonas donde los fantasmas no pueden girar hacia arriba debido a restricciones del algoritmo de movimiento.
+- Estados y orientaciones específicas de los fantasmas que limitan su acceso a estas áreas.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+Este comportamiento es resultado de reglas internas del algoritmo de IA, generando un "escondite" que puede ser explotado estratégicamente.
 
-## Test and Deploy
+## Bugs Documentados
 
-Use the built-in continuous integration in GitLab.
+### Comportamientos Inesperados en Fantasmas
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- **Blinky:** Puede quedar atrapado en el túnel cercano al escondite debido a restricciones del mapa.
+- **Pinky:** Presenta un bug cuando Pac-Man mira hacia arriba; su meta se desplaza erróneamente, impidiéndole alcanzar a Pac-Man.
+- **Inky:** Si Blinky queda atascado, Inky también puede bloquearse, dado que su cálculo de objetivo depende de la posición de Blinky.
+- **Clyde:** Cuando está lejos del escondite o en ruta a su esquina, su amenaza disminuye considerablemente.
 
-***
+**Nota:** La efectividad del escondite disminuye cuando los fantasmas están en estado de dispersión, ya que sus rutas se modifican y pueden atacar desde distintas direcciones.
 
-# Editing this README
+### Error de Cálculo en Pinky e Inky
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+El bug se origina en el procesador Z80 de 8 bits que maneja coordenadas de 16 bits usando registros dobles. Al calcular la meta de Pinky mediante multiplicación de vectores unitarios, el sistema interpreta estas coordenadas como un solo número en lugar de dos valores separados. Esto genera un desbordamiento que desplaza la posición meta, especialmente cuando Pac-Man mira hacia arriba.
 
-## Suggestions for a good README
+Dado que Inky depende parcialmente del mismo sistema de coordenadas para su cálculo, también se ve afectado por este error, generando movimientos erráticos.
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Progreso y Puntuación
 
-## Name
-Choose a self-explaining name for your project.
+### Mecánica de Puntos
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+La puntuación se actualiza en tiempo real y se muestra en la esquina superior izquierda de la pantalla. Cada acción de Pac-Man incrementa el puntaje según una tabla predefinida (consumo de píldoras, fantasmas, frutas, etc.).
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+El puntaje final se guarda al concluir el juego, junto con el seudónimo ingresado por el jugador. Estos registros se almacenan en un archivo de texto para mantener un historial de mejores marcas.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### Condición de Fin del Juego
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+El juego termina cuando Pac-Man pierde todas sus vidas o completa el último nivel en modo historia. En modo supervivencia, el juego avanza indefinidamente con niveles sucesivos.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Al finalizar, se muestra un mensaje con opciones para reiniciar la partida o regresar a la pantalla principal.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Interfaz de Usuario
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+### Pantalla de Inicio
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+La pantalla inicial presenta un menú interactivo con las siguientes opciones:
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- **Iniciar Juego:** Inicia una nueva partida y carga el tablero.
+- **Score Board:** Muestra la tabla de puntajes guardados, cargada estáticamente o desde un archivo JSON.
+- **Controles:** Despliega las instrucciones y configuración de teclas para el jugador.
+- **Salir:** Cierra la aplicación.
+- **Mute (opcional):** Activa o desactiva el sonido y música del juego sin guardar preferencias.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Todas las opciones incluyen efectos sonoros para mejorar la experiencia del usuario.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### Tabla de Puntajes
 
-## License
-For open source projects, say how it is licensed.
+La tabla de puntajes almacena y presenta los registros de mejores marcas junto con los seudónimos de los jugadores, recuperados desde almacenamiento local (archivo de texto o JSON).
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+# **Ejecución del Proyecto**
