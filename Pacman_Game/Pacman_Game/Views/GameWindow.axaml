@@ -2,15 +2,16 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:Pacman_Game.ViewModels"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d"
-        x:Class="Pacman_Game.Views.GameWindow"
-        Title="Pacman Game"
-        Width="800"
-        Height="700"
-        Background="#04041A"
-        Icon="avares://Pacman_Game/Assets/Pac-Man_icon.ico">
+	xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+	xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+	xmlns:controls="clr-namespace:Pacman_Game.Controls"
+	mc:Ignorable="d"
+	x:Class="Pacman_Game.Views.GameWindow"
+	Title="Pacman Game"
+	Width="800"
+	Height="700"
+	Background="#04041A"
+	Icon="avares://Pacman_Game/Assets/custom/Pac-Man_icon.ico">
 
 	<Design.DataContext>
 		<vm:GameViewModel/>
@@ -31,6 +32,15 @@
 			</StackPanel>
 		</Border>
 
-		<Canvas Grid.Row="1" x:Name="GameCanvas" Width="560" Height="620" Background="#04041A" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+		<Border Grid.Row="1"
+                Background="#04041A"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+			<controls:GameCanvas
+                x:Name="GameCanvas"
+                ViewModel="{Binding}"
+                Width="560"
+                Height="620"/>
+		</Border>
 	</Grid>
 </Window>

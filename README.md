@@ -3,7 +3,7 @@
 [![PROJECT](https://img.shields.io/badge/-PROJECT-0d1117.svg?logo=googlekeep&style=popout&logoColor=white)](#)
 [![C#](https://img.shields.io/badge/-C%23-471396?logo=dotnet&logoColor=fff&style=popout)](#)
 
-![Portada_Pac_Man.png](Portada_Pac_Man.png)
+![Portada_Pac_Man.png](images/Portada_Pac_Man.png)
 
 ## Descripción del Proyecto
 

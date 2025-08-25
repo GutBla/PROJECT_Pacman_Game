@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Avalonia.Threading;
+using ReactiveUI;
 
 namespace Pacman_Game.Models
 {
@@ -12,6 +13,7 @@ namespace Pacman_Game.Models
         public GhostColor Color { get; }
         public GhostState State { get; set; } = GhostState.Scatter;
         public double SpeedFactor { get; } = 0.85;
+
         private Random random = new Random();
         private DispatcherTimer stateTimer;
         private DispatcherTimer frightenedTimer;
@@ -90,11 +92,12 @@ namespace Pacman_Game.Models
             return Color switch
             {
                 GhostColor.Red => (pacman.X, pacman.Y),
-                GhostColor.Pink => (pacman.X + 4 * GetDirectionMultiplier(pacman.CurrentDirection), pacman.Y), // Intenta emboscar
+                GhostColor.Pink => (pacman.X + 4 * GetDirectionMultiplier(pacman.CurrentDirection), pacman.Y),
                 GhostColor.Blue => CalculateBlueTarget(pacman),
                 _ => (pacman.X, pacman.Y)
             };
         }
+
         private (double X, double Y) CalculateBlueTarget(Pacman pacman)
         {
             var redGhostPos = (X: 0.0, Y: 0.0);
@@ -123,9 +126,10 @@ namespace Pacman_Game.Models
             foreach (var dir in directions)
             {
                 var (newX, newY) = CalculateNewPosition(dir);
-               
-                if (!IsValidMove((int)newX, (int)newY, gameMap) ||
-                    gameMap[(int)newY, (int)newX] == 1) 
+                int intX = (int)newX;
+                int intY = (int)newY;
+
+                if (!IsValidMove(intX, intY, gameMap) || gameMap[intY, intX] == 1)
                 {
                     continue;
                 }
@@ -145,6 +149,7 @@ namespace Pacman_Game.Models
 
             MoveInDirection(bestDirection, gameMap);
         }
+
         private List<Direction> GetPossibleDirections(int[,] gameMap)
         {
             var directions = new List<Direction>();
@@ -153,12 +158,14 @@ namespace Pacman_Game.Models
                 if (dir == OppositeDirection(CurrentDirection)) continue;
 
                 var (newX, newY) = CalculateNewPosition(dir);
-                if (IsValidMove((int)newX, (int)newY, gameMap))
+                int intX = (int)newX;
+                int intY = (int)newY;
+
+                if (IsValidMove(intX, intY, gameMap))
                 {
                     directions.Add(dir);
                 }
             }
-
             return directions.Count > 0 ? directions : new List<Direction> { OppositeDirection(CurrentDirection) };
         }
 
@@ -188,7 +195,10 @@ namespace Pacman_Game.Models
         {
             CurrentDirection = direction;
             var (nextX, nextY) = CalculateNewPosition(CurrentDirection);
-            if (IsValidMove((int)nextX, (int)nextY, gameMap))
+            int intX = (int)nextX;
+            int intY = (int)nextY;
+
+            if (IsValidMove(intX, intY, gameMap))
             {
                 X = nextX;
                 Y = nextY;

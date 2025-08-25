@@ -1,4 +1,6 @@
-﻿namespace Pacman_Game.Models
+﻿using ReactiveUI;
+
+namespace Pacman_Game.Models
 {
     public class Pacman : Character
     {
@@ -15,14 +17,19 @@
         public void Move(int[,] gameMap)
         {
             var (nextX, nextY) = CalculateNewPosition(NextDirection);
-            if (IsValidMove((int)nextX, (int)nextY, gameMap) &&
-                gameMap[(int)nextY, (int)nextX] == 0) 
+            int intNextX = (int)nextX;
+            int intNextY = (int)nextY;
+
+            if (IsValidMove(intNextX, intNextY, gameMap) && gameMap[intNextY, intNextX] == 0)
             {
                 CurrentDirection = NextDirection;
             }
 
             var (newPosX, newPosY) = CalculateNewPosition(CurrentDirection);
-            if (IsValidMove((int)newPosX, (int)newPosY, gameMap))
+            int intNewPosX = (int)newPosX;
+            int intNewPosY = (int)newPosY;
+
+            if (IsValidMove(intNewPosX, intNewPosY, gameMap))
             {
                 X = newPosX;
                 Y = newPosY;
@@ -45,7 +52,6 @@
         {
             if (x < 0) x = map.GetLength(1) - 1;
             if (x >= map.GetLength(1)) x = 0;
-
             return y >= 0 && y < map.GetLength(0) && map[y, x] == 0;
         }
 
