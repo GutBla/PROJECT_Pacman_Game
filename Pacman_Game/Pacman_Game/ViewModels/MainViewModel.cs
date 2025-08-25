@@ -28,27 +28,30 @@ namespace Pacman_Game.ViewModels
             CloseCurrentWindow();
         }
 
+        private void HowToPlay()
+        {
+            var howToPlayWindow = new HowToPlayWindow();
+            howToPlayWindow.Show();
+        }
+
+        private void HighScores()
+        {
+            var highScoresWindow = new HighScoresWindow();
+            highScoresWindow.Show();
+        }
+
+        private void Settings()
+        {
+            var settingsWindow = new SettingsWindow();
+            settingsWindow.Show();
+        }
+
         private void CloseCurrentWindow()
         {
             if (Application.Current.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 desktop.MainWindow?.Close();
             }
-        }
-
-        private void HowToPlay()
-        {
-            
-        }
-
-        private void HighScores()
-        {
-            
-        }
-
-        private void Settings()
-        {
-            
         }
     }
 }

@@ -8,7 +8,7 @@
 	mc:Ignorable="d"
 	x:Class="Pacman_Game.Views.GameWindow"
 	Title="Pacman Game"
-	Width="800"
+	Width="600"
 	Height="700"
 	Background="#04041A"
 	Icon="avares://Pacman_Game/Assets/custom/Pac-Man_icon.ico">

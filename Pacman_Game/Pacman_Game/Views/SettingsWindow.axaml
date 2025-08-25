@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Pacman_Game.Views.SettingsWindow"
+        Title="Configuración"
+        Width="600"
+        Height="600">
+	<Panel Background="#0c0c44">
+		<StackPanel Margin="20" Spacing="15">
+			<!-- Título como imagen - Ruta corregida -->
+			<Image Source="avares://Pacman_Game/Assets/titles/Configuración_titles.png"
+                   Width="450" HorizontalAlignment="Center"/>
+
+			<!-- Opciones de configuración -->
+			<TextBlock Text="Volumen:" Foreground="White" FontSize="16"/>
+			<Slider Minimum="0" Maximum="100" Value="50" Margin="0,5"/>
+
+			<TextBlock Text="Dificultad:" Foreground="White" FontSize="16" Margin="0,20,0,0"/>
+			<ComboBox SelectedIndex="0" Margin="0,5">
+				<ComboBoxItem Content="Fácil"/>
+				<ComboBoxItem Content="Media"/>
+				<ComboBoxItem Content="Difícil"/>
+			</ComboBox>
+
+			<CheckBox Content="Pantalla completa" Foreground="White" FontSize="16" Margin="0,20,0,0"/>
+
+			<!-- Botones - Corregido el evento Click -->
+			<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Margin="0,30,0,0">
+				<Button Content="Aplicar"
+						Width="180" Height="40"
+						Background="#FFCC00" Foreground="Black"
+						FontSize="16" FontWeight="Bold"
+						HorizontalContentAlignment="Center"
+						VerticalContentAlignment="Center"
+						Cursor="Hand"/>
+				<Button Content="Volver al Menú" Click="BackButton_Click"
+						Width="180" Height="40"
+						Background="#FFCC00" Foreground="Black"
+						FontSize="16" FontWeight="Bold"
+						HorizontalContentAlignment="Center"
+						VerticalContentAlignment="Center"
+						Cursor="Hand"/>
+			</StackPanel>
+
+		</StackPanel>
+	</Panel>
+</Window>

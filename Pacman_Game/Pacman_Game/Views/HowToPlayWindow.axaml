@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Pacman_Game.Views.HowToPlayWindow"
+        Title="Cómo Jugar"
+        Width="600"
+        Height="600">
+	<Panel Background="#0c0c44">
+		<StackPanel Margin="20" Spacing="15">
+			<!-- Título como imagen -->
+			<Image Source="/Assets/titles/Tutorial_titles.png" Width="400" HorizontalAlignment="Center"/>
+
+			<!-- Contenido de instrucciones -->
+			<TextBlock Text="Controles:" FontSize="18" Foreground="White"/>
+			<TextBlock Text="- Flechas para mover a Pac-Man" Foreground="White"/>
+			<TextBlock Text="- R para reiniciar el juego" Foreground="White"/>
+			<TextBlock Text="- ESC para salir" Foreground="White"/>
+
+			<TextBlock Text="Objetivo:" FontSize="18" Foreground="White" Margin="0,20,0,0"/>
+			<TextBlock Text="Come todos los puntos y evita a los fantasmas." Foreground="White"
+                       TextWrapping="Wrap"/>
+
+			<!-- Botón para volver -->
+			<Button Content="Volver al Menú" Click="BackButton_Click"
+			Width="180" Height="40"
+			Background="#FFCC00" Foreground="Black"
+			FontSize="16" FontWeight="Bold"
+			HorizontalContentAlignment="Center"
+			VerticalContentAlignment="Center"
+			HorizontalAlignment="Center"
+			Cursor="Hand"/>
+
+		</StackPanel>
+	</Panel>
+</Window>
