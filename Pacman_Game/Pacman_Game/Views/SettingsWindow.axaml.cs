@@ -1,5 +1,4 @@
-﻿// SettingsWindow.axaml.cs
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;

@@ -5,8 +5,10 @@ using Pacman_Game.Views;
 using ReactiveUI;
 using System;
 using System.Collections.Generic;
+using System.Reactive;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace Pacman_Game.ViewModels
 {
@@ -26,7 +28,7 @@ namespace Pacman_Game.ViewModels
         private CancellationTokenSource _gameLoopCts;
         private Task _pacmanTask;
         private List<Task> _ghostTasks = new List<Task>();
-
+        private int _ghostsEatenDuringPower = 0;
         public DateTime? DeathTime
         {
             get => _deathTime;
@@ -35,11 +37,13 @@ namespace Pacman_Game.ViewModels
 
         public Pacman Pacman { get; } = new Pacman();
         public List<Ghost> Ghosts { get; } = new List<Ghost>();
-        public int[,] GameMap { get; private set; }
         public string[,] MapTextures { get; private set; }
         public string[,] Elements { get; private set; }
         public event EventHandler RequestClose;
-
+        public ReactiveCommand<Unit, Unit> PauseGameCommand { get; }
+        public ReactiveCommand<Unit, Unit> RestartGameCommand { get; }
+        public ReactiveCommand<Unit, Unit> ReturnToMenuCommand { get; }
+        public Map GameMap { get; private set; }
         public bool IsGameOver
         {
             get => _isGameOver;
@@ -66,6 +70,8 @@ namespace Pacman_Game.ViewModels
 
         public GameViewModel()
         {
+            MapTextures = new string[0, 0];
+            Elements = new string[0, 0];
             _gameTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(Config.GameSpeed)
@@ -81,6 +87,9 @@ namespace Pacman_Game.ViewModels
             };
             powerPelletTimer.Tick += (s, e) => EndPowerPellet();
             _gameLoopCts = new CancellationTokenSource();
+            PauseGameCommand = ReactiveCommand.Create(PauseGame);
+            RestartGameCommand = ReactiveCommand.Create(RestartGame);
+            ReturnToMenuCommand = ReactiveCommand.Create(ReturnToMenu);
         }
 
         private void UpdateGame()
@@ -88,7 +97,6 @@ namespace Pacman_Game.ViewModels
             Update();
             this.RaisePropertyChanged(nameof(GameMap));
         }
-
         public void InitializeGame()
         {
             InitializeMap();
@@ -100,16 +108,16 @@ namespace Pacman_Game.ViewModels
             isPowerPelletActive = false;
             IsGameOver = false;
             IsVictory = false;
-            _fruitTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(10)
-            };
+            Elements = new string[GameMap.Height, GameMap.Width];
+            Array.Copy(GameMap.Elements, Elements, GameMap.Elements.Length);
+            _fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
             _fruitTimer.Tick += (s, e) => SpawnRandomFruit();
             _fruitTimer.Start();
 
             _gameLoopCts?.Cancel();
             _gameLoopCts = new CancellationTokenSource();
             StartParallelGameLoop();
+            Pacman.IsPowerPelletActive = false;
         }
 
         private void ResetPacmanPosition()
@@ -124,7 +132,6 @@ namespace Pacman_Game.ViewModels
         {
             var token = _gameLoopCts.Token;
 
-            // Tarea para Pacman
             _pacmanTask = Task.Run(async () =>
             {
                 while (!token.IsCancellationRequested && !IsGameOver && !IsVictory)
@@ -134,7 +141,6 @@ namespace Pacman_Game.ViewModels
                 }
             }, token);
 
-            // Tareas para fantasmas
             _ghostTasks.Clear();
             foreach (var ghost in Ghosts)
             {
@@ -149,7 +155,6 @@ namespace Pacman_Game.ViewModels
                 _ghostTasks.Add(ghostTask);
             }
 
-            // Tarea para verificación de colisiones y victoria
             Task.Run(async () =>
             {
                 while (!token.IsCancellationRequested && !IsGameOver && !IsVictory)
@@ -224,42 +229,66 @@ namespace Pacman_Game.ViewModels
 
         public void CheckElementCollision()
         {
-            int x = (int)Pacman.X;
-            int y = (int)Pacman.Y;
+            if (GameMap == null || GameMap.Elements == null)
+                return;
 
-            if (y < 0 || y >= Elements.GetLength(0) ||
-                x < 0 || x >= Elements.GetLength(1))
+            int x = (int)Math.Round(Pacman.X);
+            int y = (int)Math.Round(Pacman.Y);
+
+            if (y < 0 || y >= GameMap.Height || x < 0 || x >= GameMap.Width)
             {
                 return;
             }
 
-            string element = Elements[y, x];
+            string elementType = GameMap.Elements[y, x];
+            if (string.IsNullOrEmpty(elementType)) return;
 
-            if (!string.IsNullOrEmpty(element))
+            var itemFactory = new ItemFactory();
+            GameItem item = itemFactory.CreateItem(elementType, x, y);
+
+            if (item != null)
             {
-                switch (element)
+                switch (elementType)
                 {
                     case "PD":
                         Score += 10;
                         dotsEaten++;
-                        Elements[y, x] = "";
                         break;
                     case "PP":
                         Score += 50;
                         ActivatePowerPellet();
-                        Elements[y, x] = "";
                         break;
-                    case "TP":
-                        HandleTeleport(x, y);
+                    case "cherry":
+                        Score += 100;
                         break;
-                    default:
-                        if (!element.StartsWith("GH") && element != "FR")
-                        {
-                            Score += 100;
-                            Elements[y, x] = "FR";
-                        }
+                    case "strawberry":
+                        Score += 300;
+                        break;
+                    case "orange":
+                        Score += 500;
+                        break;
+                    case "apple":
+                        Score += 700;
+                        break;
+                    case "melon":
+                        Score += 1000;
+                        break;
+                    case "galaxian":
+                        Score += 2000;
+                        break;
+                    case "bell":
+                        Score += 3000;
+                        break;
+                    case "key":
+                        Score += 5000;
                         break;
                 }
+
+
+                GameMap.Elements[y, x] = "";
+
+                this.RaisePropertyChanged(nameof(GameMap));
+                this.RaisePropertyChanged(nameof(Score));
             }
         }
 
@@ -306,12 +335,13 @@ namespace Pacman_Game.ViewModels
 
         private void HandleTeleports()
         {
-            if (Pacman.X < 0) Pacman.X = GameMap.GetLength(1) - 1;
-            if (Pacman.X >= GameMap.GetLength(1)) Pacman.X = 0;
+            if (Pacman.X < 0) Pacman.X = GameMap.Width - 1;
+            if (Pacman.X >= GameMap.Width) Pacman.X = 0;
         }
+
         private void InitializeMap()
         {
-            GameMap = new int[,]
+            int[,] gameMapData = new int[,]
             {
                 {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
                 {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
@@ -346,7 +376,7 @@ namespace Pacman_Game.ViewModels
                 {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
             };
 
-            MapTextures = new string[,]
+            string[,] mapTexturesData = new string[,]
             {
                 { "TL1", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "TR2", "TL2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "TR1" },
                 { "V1", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V2", "V1", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V2" },
@@ -381,7 +411,8 @@ namespace Pacman_Game.ViewModels
                 { "BL1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "BR1" }
             };
 
-            Elements = new string[,] {
+            string[,] elementsData = new string[,]
+           {
                 { "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
                 { "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "" },
                 { "", "PD", "", "", "", "", "PD", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "PD", "", "", "", "", "PD", "" },
@@ -414,20 +445,26 @@ namespace Pacman_Game.ViewModels
                 { "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "" },
                 { "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" }
             };
+            GameMap = new Map(gameMapData.GetLength(1), gameMapData.GetLength(0));
+            GameMap.InitializeFromData(gameMapData, mapTexturesData, elementsData);
         }
+
 
         private void InitializeGhosts()
         {
+            var ghostFactory = new GhostFactory();
             Ghosts.Clear();
-            Ghosts.Add(new Ghost(GhostColor.Red) { X = 12, Y = 14 });
-            Ghosts.Add(new Ghost(GhostColor.Pink) { X = 13, Y = 14 });
-            Ghosts.Add(new Ghost(GhostColor.Blue) { X = 14, Y = 14 });
-            Ghosts.Add(new Ghost(GhostColor.Orange) { X = 15, Y = 14 });
+
+            Ghosts.Add(ghostFactory.CreateGhost(GhostColor.Red, 12, 14));
+            Ghosts.Add(ghostFactory.CreateGhost(GhostColor.Pink, 13, 14));
+            Ghosts.Add(ghostFactory.CreateGhost(GhostColor.Blue, 14, 14));
+            Ghosts.Add(ghostFactory.CreateGhost(GhostColor.Orange, 15, 14));
         }
 
         private void ActivatePowerPellet()
         {
             isPowerPelletActive = true;
+            Pacman.IsPowerPelletActive = true;
             foreach (var ghost in Ghosts)
             {
                 ghost.SetFrightened();
@@ -438,6 +475,8 @@ namespace Pacman_Game.ViewModels
         private void EndPowerPellet()
         {
             isPowerPelletActive = false;
+            Pacman.IsPowerPelletActive = false;
+            _ghostsEatenDuringPower = 0;
             powerPelletTimer.Stop();
             foreach (var ghost in Ghosts)
             {
@@ -450,21 +489,26 @@ namespace Pacman_Game.ViewModels
 
         private void CheckPacmanGhostCollision(Ghost ghost)
         {
-            if ((int)Pacman.X == (int)ghost.X && (int)Pacman.Y == (int)ghost.Y)
+            if ((int)Math.Round(Pacman.X) == (int)Math.Round(ghost.X) &&
+                (int)Math.Round(Pacman.Y) == (int)Math.Round(ghost.Y))
             {
                 if (ghost.State == GhostState.Frightened)
                 {
                     ghost.State = GhostState.Eaten;
-                    Score += 200;
+
+                    int points = 200 * (int)Math.Pow(2, _ghostsEatenDuringPower);
+                    Score += points;
+                    _ghostsEatenDuringPower++;
+
+                    this.RaisePropertyChanged(nameof(Score));
                 }
                 else if (ghost.State != GhostState.Eaten && !Pacman.IsDying)
                 {
                     Lives--;
+                    _ghostsEatenDuringPower = 0;
                     DeathTime = DateTime.Now;
                     Pacman.IsDying = true;
-
                     _gameLoopCts.Cancel();
-
                     PlayDeathAnimation();
                 }
             }
@@ -472,13 +516,15 @@ namespace Pacman_Game.ViewModels
 
         private void CheckVictoryCondition()
         {
-            bool allDotsEaten = true;
+            if (Elements == null || GameMap?.Elements == null) return;
 
+            bool allDotsEaten = true;
             for (int y = 0; y < Elements.GetLength(0); y++)
             {
                 for (int x = 0; x < Elements.GetLength(1); x++)
                 {
-                    if (Elements[y, x] == "PD" || Elements[y, x] == "PP")
+                    string element = Elements[y, x];
+                    if (element == "PD" || element == "PP")
                     {
                         allDotsEaten = false;
                         break;
@@ -490,8 +536,8 @@ namespace Pacman_Game.ViewModels
             if (allDotsEaten && !IsVictory)
             {
                 IsVictory = true;
-                _gameTimer.Stop();
-                _fruitTimer.Stop();
+                _gameTimer?.Stop();
+                _fruitTimer?.Stop();
                 ShowVictoryWindow();
             }
         }
@@ -587,6 +633,31 @@ namespace Pacman_Game.ViewModels
                 IsGameOver = true;
                 ShowGameOverWindow();
             }
+        }
+        private void PauseGame()
+        {
+            if (_gameTimer.IsEnabled)
+            {
+                _gameTimer.Stop();
+                _gameLoopCts?.Cancel();
+            }
+            else
+            {
+                _gameTimer.Start();
+                StartParallelGameLoop();
+            }
+        }
+
+        private void RestartGame()
+        {
+            InitializeGame();
+        }
+
+        private void ReturnToMenu()
+        {
+            RequestClose?.Invoke(this, EventArgs.Empty);
+            var mainWindow = new MainWindow();
+            mainWindow.Show();
         }
     }
 }

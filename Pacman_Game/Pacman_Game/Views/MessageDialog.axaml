@@ -4,7 +4,7 @@
         Title="Mensaje"
         Width="300"
         Height="150">
-	<StackPanel Margin="10">
+	<StackPanel Margin="10" >
 		<TextBlock x:Name="MessageText" Margin="10" TextWrapping="Wrap"/>
 		<Button Content="OK" Click="OKButton_Click"
                 HorizontalAlignment="Center" Margin="10" Width="80"/>

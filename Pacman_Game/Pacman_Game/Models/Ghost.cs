@@ -8,29 +8,37 @@ namespace Pacman_Game.Models
     public enum GhostColor { Red, Pink, Blue, Orange }
     public enum GhostState { Chase, Scatter, Frightened, Eaten }
 
-    public class Ghost : Character
+    public abstract class Ghost : Character
     {
         public GhostColor Color { get; }
         public GhostState State { get; set; } = GhostState.Scatter;
-        public double SpeedFactor { get; } = 0.85;
+
+        public virtual double SpeedFactor { get; } = 0.85;
+        public bool IsInTunnel { get; set; } = false;
 
         private Random random = new Random();
         private DispatcherTimer stateTimer;
         private DispatcherTimer frightenedTimer;
         private DispatcherTimer _frightenedEndingTimer;
+        protected (int X, int Y) SpawnPoint;
 
-        public (int X, int Y) SpawnPoint => (14, 14);
-
-        public Ghost(GhostColor color)
+        protected Ghost(GhostColor color, double x, double y)
         {
             Color = color;
+            X = x;
+            Y = y;
             Speed = 1;
-            X = SpawnPoint.X;
-            Y = SpawnPoint.Y;
             CurrentDirection = Direction.Left;
             SetupStateTimers();
         }
 
+        public double GetCurrentSpeed()
+        {
+            if (IsInTunnel) return 0.4;
+            if (State == GhostState.Eaten) return 2.0;
+            if (State == GhostState.Frightened) return 0.5;
+            return 0.75;
+        }
         private void SetupStateTimers()
         {
             stateTimer = new DispatcherTimer
@@ -54,10 +62,7 @@ namespace Pacman_Game.Models
             {
                 Interval = TimeSpan.FromSeconds(8)
             };
-            _frightenedEndingTimer.Tick += (s, e) =>
-            {
-
-            };
+            _frightenedEndingTimer.Tick += (s, e) => { };
         }
 
         private void CycleStates()
@@ -72,23 +77,23 @@ namespace Pacman_Game.Models
             }
         }
 
-        public void ChasePacman(Pacman pacman, int[,] gameMap)
+        public void ChasePacman(Pacman pacman, Map map)
         {
             switch (State)
             {
                 case GhostState.Chase:
                     var target = GetTargetPosition(pacman);
-                    MoveTowardsTarget(target.X, target.Y, gameMap);
+                    MoveTowardsTarget(target.X, target.Y, map);
                     break;
                 case GhostState.Scatter:
-                    var corner = GetScatterCorner(gameMap);
-                    MoveTowardsTarget(corner.X, corner.Y, gameMap);
+                    var corner = GetScatterCorner(map);
+                    MoveTowardsTarget(corner.X, corner.Y, map);
                     break;
                 case GhostState.Frightened:
-                    MoveRandomly(gameMap);
+                    MoveRandomly(map);
                     break;
                 case GhostState.Eaten:
-                    MoveTowardsTarget(SpawnPoint.X, SpawnPoint.Y, gameMap);
+                    MoveTowardsTarget(SpawnPoint.X, SpawnPoint.Y, map);
                     if (Math.Abs(X - SpawnPoint.X) < 0.1 && Math.Abs(Y - SpawnPoint.Y) < 0.1)
                     {
                         State = GhostState.Scatter;
@@ -97,22 +102,29 @@ namespace Pacman_Game.Models
             }
         }
 
-        private (double X, double Y) GetTargetPosition(Pacman pacman)
+        protected abstract (double X, double Y) GetTargetPosition(Pacman pacman);
+
+        protected virtual (double X, double Y) GetScatterCorner(Map map)
         {
+            if (map == null)
+            {
+                return Color switch
+                {
+                    GhostColor.Red => (0, 0),
+                    GhostColor.Pink => (0, 27),
+                    GhostColor.Blue => (27, 0),
+                    GhostColor.Orange => (27, 30),
+                    _ => (0, 0)
+                };
+            }
             return Color switch
             {
-                GhostColor.Red => (pacman.X, pacman.Y),
-                GhostColor.Pink => (pacman.X + 4 * GetDirectionMultiplier(pacman.CurrentDirection), pacman.Y),
-                GhostColor.Blue => CalculateBlueTarget(pacman),
-                _ => (pacman.X, pacman.Y)
+                GhostColor.Red => (0, 0),
+                GhostColor.Pink => (0, map.Height - 1),
+                GhostColor.Blue => (map.Width - 1, 0),
+                GhostColor.Orange => (map.Width - 1, map.Height - 1),
+                _ => (0, 0)
             };
-        }
-
-        private (double X, double Y) CalculateBlueTarget(Pacman pacman)
-        {
-            var redGhostPos = (X: 0.0, Y: 0.0);
-            var vector = (pacman.X - redGhostPos.X, pacman.Y - redGhostPos.Y);
-            return (pacman.X + vector.Item1 * 2, pacman.Y + vector.Item2 * 2);
         }
 
         private int GetDirectionMultiplier(Direction dir)
@@ -127,9 +139,9 @@ namespace Pacman_Game.Models
             };
         }
 
-        private void MoveTowardsTarget(double targetX, double targetY, int[,] gameMap)
+        private void MoveTowardsTarget(double targetX, double targetY, Map map)
         {
-            var directions = GetPossibleDirections(gameMap);
+            var directions = GetPossibleDirections(map);
             Direction bestDirection = CurrentDirection;
             double minDistance = double.MaxValue;
 
@@ -139,7 +151,7 @@ namespace Pacman_Game.Models
                 int intX = (int)newX;
                 int intY = (int)newY;
 
-                if (!IsValidMove(intX, intY, gameMap) || gameMap[intY, intX] == 1)
+                if (!IsValidMove(intX, intY, map) || map.IsBlocking(intX, intY))
                 {
                     continue;
                 }
@@ -156,22 +168,19 @@ namespace Pacman_Game.Models
             {
                 bestDirection = OppositeDirection(CurrentDirection);
             }
-
-            MoveInDirection(bestDirection, gameMap);
+            MoveInDirection(bestDirection, map);
         }
 
-        private List<Direction> GetPossibleDirections(int[,] gameMap)
+        private List<Direction> GetPossibleDirections(Map map)
         {
             var directions = new List<Direction>();
             foreach (Direction dir in Enum.GetValues(typeof(Direction)))
             {
                 if (dir == OppositeDirection(CurrentDirection)) continue;
-
                 var (newX, newY) = CalculateNewPosition(dir);
                 int intX = (int)newX;
                 int intY = (int)newY;
-
-                if (IsValidMove(intX, intY, gameMap))
+                if (IsValidMove(intX, intY, map))
                 {
                     directions.Add(dir);
                 }
@@ -191,56 +200,50 @@ namespace Pacman_Game.Models
             };
         }
 
-        private void MoveRandomly(int[,] gameMap)
+        private void MoveRandomly(Map map)
         {
-            var validDirections = GetPossibleDirections(gameMap);
+            var validDirections = GetPossibleDirections(map);
             if (validDirections.Count > 0)
             {
                 int index = random.Next(validDirections.Count);
-                MoveInDirection(validDirections[index], gameMap);
+                MoveInDirection(validDirections[index], map);
             }
         }
 
-        private void MoveInDirection(Direction direction, int[,] gameMap)
+        private void MoveInDirection(Direction direction, Map map)
         {
+            IsInTunnel = (Y >= 13.5 && Y <= 14.5) && (X < 1.5 || X > map.Width - 2.5);
+
             CurrentDirection = direction;
             var (nextX, nextY) = CalculateNewPosition(CurrentDirection);
             int intX = (int)nextX;
             int intY = (int)nextY;
 
-            if (IsValidMove(intX, intY, gameMap))
+            if (IsValidMove(intX, intY, map))
             {
                 X = nextX;
                 Y = nextY;
             }
         }
 
-        private (double, double) CalculateNewPosition(Direction direction) => direction switch
+        private (double, double) CalculateNewPosition(Direction direction)
         {
-            Direction.Up => (X, Y - SpeedFactor),
-            Direction.Down => (X, Y + SpeedFactor),
-            Direction.Left => (X - SpeedFactor, Y),
-            Direction.Right => (X + SpeedFactor, Y),
-            _ => (X, Y)
-        };
-
-        private bool IsValidMove(int x, int y, int[,] map)
-        {
-            if (x < 0 || y < 0 || y >= map.GetLength(0) || x >= map.GetLength(1))
-                return false;
-            return map[y, x] == 0;
+            double speed = GetCurrentSpeed();
+            return direction switch
+            {
+                Direction.Up => (X, Y - speed),
+                Direction.Down => (X, Y + speed),
+                Direction.Left => (X - speed, Y),
+                Direction.Right => (X + speed, Y),
+                _ => (X, Y)
+            };
         }
 
-        private (double X, double Y) GetScatterCorner(int[,] gameMap)
+        private bool IsValidMove(int x, int y, Map map)
         {
-            return Color switch
-            {
-                GhostColor.Red => (0, 0),
-                GhostColor.Pink => (0, gameMap.GetLength(0) - 1),
-                GhostColor.Blue => (gameMap.GetLength(1) - 1, 0),
-                GhostColor.Orange => (gameMap.GetLength(1) - 1, gameMap.GetLength(0) - 1),
-                _ => (0, 0)
-            };
+            if (x < 0 || y < 0 || y >= map.Height || x >= map.Width)
+                return false;
+            return !map.IsBlocking(x, y);
         }
 
         public void SetFrightened()
@@ -262,6 +265,74 @@ namespace Pacman_Game.Models
             State = GhostState.Scatter;
             CurrentDirection = Direction.Left;
             frightenedTimer.Stop();
+        }
+    }
+
+    public class Blinky : Ghost
+    {
+        public Blinky(double x, double y) : base(GhostColor.Red, x, y)
+        {
+            SpawnPoint = (14, 14);
+        }
+
+        protected override (double X, double Y) GetTargetPosition(Pacman pacman)
+        {
+            return (pacman.X, pacman.Y);
+        }
+    }
+
+    public class Pinky : Ghost
+    {
+        public Pinky(double x, double y) : base(GhostColor.Pink, x, y)
+        {
+            SpawnPoint = (14, 14);
+        }
+
+        protected override (double X, double Y) GetTargetPosition(Pacman pacman)
+        {
+            int multiplier = 4;
+            var (targetX, targetY) = pacman.CurrentDirection switch
+            {
+                Direction.Left => (pacman.X - multiplier, pacman.Y),
+                Direction.Right => (pacman.X + multiplier, pacman.Y),
+                Direction.Up => (pacman.X, pacman.Y - multiplier),
+                Direction.Down => (pacman.X, pacman.Y + multiplier),
+                _ => (pacman.X, pacman.Y)
+            };
+            return (targetX, targetY);
+        }
+    }
+
+    public class Inky : Ghost
+    {
+        private Blinky blinky;
+
+        public Inky(double x, double y, Blinky blinky) : base(GhostColor.Blue, x, y)
+        {
+            this.blinky = blinky;
+            SpawnPoint = (14, 14);
+        }
+
+        protected override (double X, double Y) GetTargetPosition(Pacman pacman)
+        {
+            int offset = 2;
+            var (blinkyX, blinkyY) = (blinky.X, blinky.Y);
+            var (targetX, targetY) = (pacman.X + (pacman.X - blinkyX), pacman.Y + (pacman.Y - blinkyY));
+            return (targetX * offset, targetY * offset);
+        }
+    }
+
+    public class Clyde : Ghost
+    {
+        public Clyde(double x, double y) : base(GhostColor.Orange, x, y)
+        {
+            SpawnPoint = (14, 14);
+        }
+
+        protected override (double X, double Y) GetTargetPosition(Pacman pacman)
+        {
+            double distance = Math.Sqrt(Math.Pow(X - pacman.X, 2) + Math.Pow(Y - pacman.Y, 2));
+            return distance > 8 ? (pacman.X, pacman.Y) : GetScatterCorner(null);
         }
     }
 }

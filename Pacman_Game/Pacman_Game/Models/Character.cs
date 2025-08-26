@@ -6,6 +6,10 @@ namespace Pacman_Game.Models
     {
         private double x;
         private double y;
+        protected bool IsValidMove(int x, int y, Map map)
+        {
+            return !map.IsBlocking(x, y);
+        }
 
         public double X
         {
