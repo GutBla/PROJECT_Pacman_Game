@@ -23,10 +23,10 @@ namespace Pacman_Game.Services
                     return scores;
                 }
 
-                string json = File.ReadAllText(ScoresFile);
+                string json = File.ReadAllText(ScoresFile); // Leer archivo
                 scores = JsonSerializer.Deserialize<List<ScoreRecord>>(json) ?? new List<ScoreRecord>();
 
-                return scores.OrderBy(s => s.Rank).ToList();
+                return scores.OrderBy(s => s.Rank).ToList(); // Ordenar por ranking
             }
             catch (Exception ex)
             {
@@ -40,24 +40,24 @@ namespace Pacman_Game.Services
             try
             {
                 Directory.CreateDirectory(ScoresDirectory);
-                var scores = LoadScores();
+                var scores = LoadScores(); // Cargar scores actuales
 
                 scores.Add(newScore);
                 var topScores = scores
-                    .OrderByDescending(s => s.Score)
-                    .ThenBy(s => s.Name)
+                    .OrderByDescending(s => s.Score) 
+                    .ThenBy(s => s.Name) 
                     .Take(10)
                     .ToList();
 
                 for (int i = 0; i < topScores.Count; i++)
                 {
-                    topScores[i].Rank = i + 1;
+                    topScores[i].Rank = i + 1; // Actualizar ranking
                 }
 
                 string json = JsonSerializer.Serialize(topScores,
                     new JsonSerializerOptions { WriteIndented = true });
 
-                File.WriteAllText(ScoresFile, json);
+                File.WriteAllText(ScoresFile, json); // Guardar archivo
                 return true;
             }
             catch (Exception ex)

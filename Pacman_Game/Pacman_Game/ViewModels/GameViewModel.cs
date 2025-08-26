@@ -13,7 +13,7 @@ using System.Linq;
 
 namespace Pacman_Game.ViewModels
 {
-    public class GameViewModel : ViewModelBase
+    public class GameViewModel : ViewModelBase, IDisposable
     {
         private int score;
         private int lives = 100;
@@ -30,11 +30,18 @@ namespace Pacman_Game.ViewModels
         private Task _pacmanTask = Task.CompletedTask;
         private List<Task> _ghostTasks = new();
         private int _ghostsEatenDuringPower = 0;
+        private bool _gameOverWindowShown = false;
 
         public DateTime? DeathTime
         {
             get => _deathTime;
             set => this.RaiseAndSetIfChanged(ref _deathTime, value);
+        }
+        public void Dispose()
+        {
+            _gameLoopCts?.Cancel();
+            _gameTimer?.Stop();
+            _fruitTimer?.Stop();
         }
 
         public Pacman Pacman { get; } = new();
@@ -142,6 +149,7 @@ namespace Pacman_Game.ViewModels
             Pacman.NextDirection = Direction.Right;
         }
 
+        // Inicio de loop paralelo para actualizar Pacman y fantasmas
         private void StartParallelGameLoop()
         {
             var token = _gameLoopCts.Token;
@@ -192,6 +200,7 @@ namespace Pacman_Game.ViewModels
             }, token);
         }
 
+        // Movimiento de Pacman
         private void UpdatePacman()
         {
             Dispatcher.UIThread.Post(() =>
@@ -202,6 +211,7 @@ namespace Pacman_Game.ViewModels
             });
         }
 
+        // Movimiento de fantasmas
         private void UpdateGhost(Ghost ghost)
         {
             Dispatcher.UIThread.Post(() =>
@@ -213,6 +223,7 @@ namespace Pacman_Game.ViewModels
             });
         }
 
+        //  frutas aleatorias
         private void SpawnRandomFruit()
         {
             if (Elements == null || Elements.GetLength(0) == 0 || IsGameOver || IsVictory)
@@ -254,6 +265,8 @@ namespace Pacman_Game.ViewModels
                 fruitTimer.Start();
             }
         }
+
+        // Colisiones con elementos del mapa
         private void CheckElementCollision()
         {
             if (GameMap == null || Elements == null || Elements.GetLength(0) == 0) return;
@@ -328,24 +341,6 @@ namespace Pacman_Game.ViewModels
             }
         }
 
-        private void HandleTeleport(int x, int y)
-        {
-            if (Elements == null) return;
-
-            for (int ty = 0; ty < Elements.GetLength(0); ty++)
-            {
-                for (int tx = 0; tx < Elements.GetLength(1); tx++)
-                {
-                    if (Elements[ty, tx] == "TP" && (tx != x || ty != y))
-                    {
-                        Pacman.X = tx;
-                        Pacman.Y = ty;
-                        return;
-                    }
-                }
-            }
-        }
-
         public void Update()
         {
             if (IsGameOver || IsVictory) return;
@@ -378,6 +373,7 @@ namespace Pacman_Game.ViewModels
         }
         private void InitializeMap()
         {
+            // Mapa de Limites
             int[,] gameMapData = new int[,]
             {
                 {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
@@ -413,6 +409,7 @@ namespace Pacman_Game.ViewModels
                 {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
             };
 
+            // Mapa de Texturas
             string[,] mapTexturesData = new string[,]
             {
                 { "TL1", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "TR2", "TL2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "TR1" },
@@ -448,6 +445,7 @@ namespace Pacman_Game.ViewModels
                 { "BL1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "BR1" }
             };
 
+            // Mapa de Elementos
             string[,] elementsData = new string[,]
            {
                 { "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
@@ -610,16 +608,15 @@ namespace Pacman_Game.ViewModels
 
         private void ShowGameOverWindow()
         {
+            if (_gameOverWindowShown) return;
+            _gameOverWindowShown = true;
+
             Dispatcher.UIThread.Post(() =>
             {
                 var gameOverWindow = new GameOverWindow();
+                gameOverWindow.Closed += (s, e) => _gameOverWindowShown = false;
                 gameOverWindow.Show();
             });
-        }
-
-        private void CloseGameWindow()
-        {
-            RequestClose?.Invoke(this, EventArgs.Empty);
         }
 
         private void ResetPositions()

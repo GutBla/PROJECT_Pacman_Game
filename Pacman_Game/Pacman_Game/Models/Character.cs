@@ -11,6 +11,7 @@ namespace Pacman_Game.Models
             return !map.IsBlocking(x, y);
         }
 
+        // Posición X del personaje en el mapa.
         public double X
         {
             get => x;
@@ -21,6 +22,7 @@ namespace Pacman_Game.Models
             }
         }
 
+        // Posición Y del personaje en el mapa.
         public double Y
         {
             get => y;
@@ -33,7 +35,7 @@ namespace Pacman_Game.Models
 
         public Direction CurrentDirection { get; set; } = Direction.Right;
         public Direction NextDirection { get; set; } = Direction.Right;
-        public int Speed { get; protected set; } = 1;
+        public int Speed { get; protected set; } = 1;  // Velocidad de movimiento del personaje.
 
         public event PropertyChangedEventHandler? PropertyChanged;
 

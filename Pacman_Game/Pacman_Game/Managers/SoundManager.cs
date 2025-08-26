@@ -8,6 +8,8 @@ namespace Pacman_Game.Managers
     public sealed class SoundManager
     {
         private static readonly Lazy<SoundManager> _instance = new Lazy<SoundManager>(() => new SoundManager());
+        
+        // Singleton: Instancia única accesible desde cualquier parte.
         public static SoundManager Instance => _instance.Value;
 
         private readonly Dictionary<string, AudioFileReader> _soundFiles;
@@ -63,6 +65,7 @@ namespace Pacman_Game.Managers
             }
         }
 
+        // Reproduce un sonido específico reiniciando su posición.
         public void PlaySound(string soundName)
         {
             if (_soundFiles.TryGetValue(soundName, out var audioFile))
@@ -97,6 +100,7 @@ namespace Pacman_Game.Managers
             _outputDevice.Stop();
         }
 
+        // Libera recursos del dispositivo de salida y archivos de audio.
         public void Dispose()
         {
             _outputDevice?.Stop();

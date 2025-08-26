@@ -8,17 +8,19 @@
         public int Y { get; set; }
     }
 
+    // dot
     public class Dot : GameItem
     {
         public Dot(int x, int y)
         {
-            Points = 10;
-            Type = "PD";
+            Points = 10;  // Valor de puntos
+            Type = "PD";  // Identificador de tipo
             X = x;
             Y = y;
         }
     }
 
+    // Power Pellets
     public class PowerPellet : GameItem
     {
         public PowerPellet(int x, int y)
@@ -30,6 +32,7 @@
         }
     }
 
+    // frutas
     public class Fruit : GameItem
     {
         public Fruit(string fruitType, int x, int y)

@@ -2,11 +2,14 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Pacman_Game.ViewModels;
+using System;
 
 namespace Pacman_Game.Views
 {
     public partial class GameOverWindow : Window
     {
+
         public GameOverWindow()
         {
             InitializeComponent();
@@ -43,6 +46,12 @@ namespace Pacman_Game.Views
                 this.Close();
             }
             base.OnKeyDown(e);
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            (DataContext as IDisposable)?.Dispose();
+            base.OnClosed(e);
         }
     }
 }

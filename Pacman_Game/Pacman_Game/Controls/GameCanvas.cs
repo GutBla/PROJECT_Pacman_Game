@@ -38,6 +38,7 @@ namespace Pacman_Game.Controls
             Focusable = true;
         }
 
+        // Configura un temporizador que actualiza frames cada 200ms.
         private void SetupAnimationTimer()
         {
             _animationTimer = new DispatcherTimer
@@ -52,6 +53,7 @@ namespace Pacman_Game.Controls
             _animationTimer.Start();
         }
 
+        // Dibuja el fondo, mapa, elementos, Pac-Man y fantasmas.
         public override void Render(DrawingContext context)
         {
             base.Render(context);
@@ -245,6 +247,7 @@ namespace Pacman_Game.Controls
             }
         }
 
+        // Maneja teclas para mover a Pac-Man o reiniciar el juego.
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);

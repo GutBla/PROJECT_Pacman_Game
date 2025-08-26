@@ -5,19 +5,27 @@ using ReactiveUI;
 
 namespace Pacman_Game.Models
 {
+    // Enumeraciones para color
     public enum GhostColor { Red, Pink, Blue, Orange }
+
+    // Enumeraciones Estados de los fantasmas
     public enum GhostState { LeavingHouse, Scatter, Chase, Frightened, Eaten }
 
     public abstract class Ghost : Character
     {
+        // Propiedades
         public GhostColor Color { get; }
         public GhostState State { get; set; } = GhostState.LeavingHouse;
         public virtual double SpeedFactor { get; } = 0.85;
         public bool IsInTunnel { get; set; } = false;
         private Random random = new Random();
+
+        // Temporizadores: Ciclo de estados, modo asustado y final de modo asustado
         private DispatcherTimer stateTimer;
         private DispatcherTimer frightenedTimer;
         private DispatcherTimer _frightenedEndingTimer;
+
+        // SpawnPoint y HouseExit: Posiciones de inicio y salida de la casa
         protected (int X, int Y) SpawnPoint;
         protected (int X, int Y) HouseExit = (14, 11);
         private int _dotsRequiredToLeave;
@@ -68,6 +76,7 @@ namespace Pacman_Game.Models
             return 0.75;
         }
 
+        // CycleStates: Alterna entre Scatter y Chase
         private void CycleStates()
         {
             if (State == GhostState.Scatter)
@@ -87,6 +96,7 @@ namespace Pacman_Game.Models
             }
         }
 
+        // ChasePacman: Lógica de movimiento según el estado del fantasma
         public void ChasePacman(Pacman pacman, Map map)
         {
             if (State == GhostState.LeavingHouse && _dotsEatenGlobal >= _dotsRequiredToLeave)
@@ -121,8 +131,10 @@ namespace Pacman_Game.Models
             }
         }
 
+        // GetTargetPosition: Posición objetivo según estrategia de cada fantasma
         protected abstract (double X, double Y) GetTargetPosition(Pacman pacman);
 
+        // GetScatterCorner: Retorna la esquina de dispersión según color y mapa.
         protected virtual (double X, double Y) GetScatterCorner(Map? map)
         {
             if (map == null)
@@ -147,6 +159,7 @@ namespace Pacman_Game.Models
             };
         }
 
+        // MoveTowardsTarget: Calcula mejor dirección para acercarse a la posición objetivo.
         private void MoveTowardsTarget(double targetX, double targetY, Map map)
         {
             var directions = GetPossibleDirections(map);
@@ -166,14 +179,6 @@ namespace Pacman_Game.Models
             }
 
             MoveInDirection(bestDirection, map);
-        }
-
-        private bool IsInGhostHouse()
-        {
-            int x = (int)Math.Round(X);
-            int y = (int)Math.Round(Y);
-
-            return (x >= 13 && x <= 15) && (y >= 10 && y <= 16);
         }
 
         private List<Direction> GetPossibleDirections(Map map)
@@ -293,6 +298,7 @@ namespace Pacman_Game.Models
             return !map.IsBlocking(x, y);
         }
 
+        // SetFrightened: Activa modo asustado y reinicia temporizadores.
         public void SetFrightened()
         {
             if (State != GhostState.Eaten)
@@ -316,6 +322,7 @@ namespace Pacman_Game.Models
         }
     }
 
+    // Blinky: Fantasma rojo, persigue directamente a Pac-Man.
     public class Blinky : Ghost
     {
         public Blinky(double x, double y) : base(GhostColor.Red, x, y, 0)
@@ -329,6 +336,7 @@ namespace Pacman_Game.Models
         }
     }
 
+    // Pinky: Fantasma rosa, apunta a 4 casillas adelante de Pac-Man.
     public class Pinky : Ghost
     {
         public Pinky(double x, double y) : base(GhostColor.Pink, x, y, 0)
@@ -351,6 +359,7 @@ namespace Pacman_Game.Models
         }
     }
 
+    // Inky: Fantasma azul, usa posición de Blinky y vector de Pac-Man para calcular objetivo.
     public class Inky : Ghost
     {
         private Blinky blinky;
@@ -377,6 +386,7 @@ namespace Pacman_Game.Models
         }
     }
 
+    // Clyde: Fantasma naranja, alterna entre perseguir a Pac-Man o ir a esquina según distancia.
     public class Clyde : Ghost
     {
         public Clyde(double x, double y) : base(GhostColor.Orange, x, y, 60)

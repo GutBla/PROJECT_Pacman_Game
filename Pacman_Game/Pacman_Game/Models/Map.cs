@@ -3,9 +3,9 @@
     public class Map
     {
         public TileFlyweight[,] Tiles { get; private set; }
-        public string[,] Elements { get; private set; }
+        public string[,] Elements { get; private set; } 
         public int Width { get; private set; }
-        public int Height { get; private set; }
+        public int Height { get; private set; } 
 
         public Map(int width, int height)
         {
@@ -14,6 +14,7 @@
             Tiles = new TileFlyweight[height, width];
             Elements = new string[height, width];
         }
+
 
         public void InitializeFromData(int[,] gameMap, string[,] mapTextures, string[,] elements)
         {
@@ -28,6 +29,7 @@
             }
         }
 
+        // Indica si una celda es bloqueante (pared)
         public bool IsBlocking(int x, int y)
         {
             if (x < 0 || y < 0 || x >= Width || y >= Height)
@@ -36,6 +38,7 @@
             return Tiles[y, x].IsBlocking;
         }
 
+        // Devuelve la clave de textura de un tile
         public string GetTextureKey(int x, int y)
         {
             if (x < 0 || y < 0 || x >= Width || y >= Height)

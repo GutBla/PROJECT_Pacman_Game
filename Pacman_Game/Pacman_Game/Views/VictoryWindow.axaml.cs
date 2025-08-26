@@ -74,10 +74,9 @@ namespace Pacman_Game.Views
 
         private void RestartGame()
         {
-            Console.WriteLine("RestartGame llamado");
-            var gameWindow = new GameWindow();
-            gameWindow.Show();
             this.Close();
+            var newGameWindow = new GameWindow();
+            newGameWindow.Show();
         }
 
         private void ReturnToMenu()

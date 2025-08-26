@@ -24,14 +24,8 @@ namespace Pacman_Game.ViewModels
 
         private void LoadScores()
         {
+            // Genera la lista de las 10 posiciones
             var scores = ScoreService.LoadScores();
-
-            Console.WriteLine($"Scores loaded: {scores?.Count}");
-            foreach (var score in scores)
-            {
-                Console.WriteLine($"Rank: {score.Rank}, Name: {score.Name}, Score: {score.Score}");
-            }
-
             var displayScores = new List<ScoreRecord>();
             for (int i = 1; i <= 10; i++)
             {

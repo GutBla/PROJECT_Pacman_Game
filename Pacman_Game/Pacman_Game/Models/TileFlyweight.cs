@@ -4,7 +4,7 @@ namespace Pacman_Game.Models
 {
     public class TileFlyweight
     {
-        public string TextureKey { get; }
+        public string TextureKey { get; } 
         public bool IsBlocking { get; }
 
         public TileFlyweight(string textureKey, bool isBlocking)
@@ -16,9 +16,9 @@ namespace Pacman_Game.Models
 
     public static class TileFlyweightFactory
     {
-        private static Dictionary<string, TileFlyweight> _tiles = new Dictionary<string, TileFlyweight>();
+        private static Dictionary<string, TileFlyweight> _tiles = new();
 
-        public static TileFlyweight GetTile(string textureKey, bool isBlocking)
+        public static TileFlyweight GetTile(string textureKey, bool isBlocking) // Retorna tile único
         {
             string key = $"{textureKey}_{isBlocking}";
             if (!_tiles.ContainsKey(key))
@@ -28,7 +28,7 @@ namespace Pacman_Game.Models
             return _tiles[key];
         }
 
-        public static TileFlyweight GetTileFromMapData(string textureKey, int gameMapValue)
+        public static TileFlyweight GetTileFromMapData(string textureKey, int gameMapValue) // Determina si bloquea según valor del mapa
         {
             bool isBlocking = gameMapValue == 1;
             return GetTile(textureKey, isBlocking);

@@ -34,6 +34,7 @@ namespace Pacman_Game.ViewModels
             howToPlayWindow.Show();
         }
 
+
         private void HighScores()
         {
             var highScoresWindow = new HighScoresWindow();
