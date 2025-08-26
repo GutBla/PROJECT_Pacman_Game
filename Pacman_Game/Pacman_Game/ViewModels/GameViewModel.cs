@@ -110,7 +110,10 @@ namespace Pacman_Game.ViewModels
             dotsEaten = 0;
             IsGameOver = false;
             IsVictory = false;
-
+            foreach (var ghost in Ghosts)
+            {
+                ghost.Reset();
+            }
             if (GameMap.Elements != null)
             {
                 Elements = new string[GameMap.Height, GameMap.Width];
@@ -277,6 +280,7 @@ namespace Pacman_Game.ViewModels
                     case "PD":
                         Score += 10;
                         dotsEaten++;
+                        Ghost.UpdateDotsEaten(dotsEaten);
                         SoundManager.Instance.PlaySound("chomp");
                         break;
                     case "PP":

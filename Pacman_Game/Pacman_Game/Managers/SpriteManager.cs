@@ -151,7 +151,7 @@ namespace Pacman_Game.Managers
                 FruitSprites["key"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/key.png");
 
                 // Tiles
-                LoadTexture("path", "Assets/tilesets/sprite_path.png");
+                LoadTexture("path", "tilesets/sprite_path");
 
                 LoadTexture("TL1", "tilesets/corner_top_left/corner_top_left_01");
                 LoadTexture("TL2", "tilesets/corner_top_left/corner_top_left_02");
