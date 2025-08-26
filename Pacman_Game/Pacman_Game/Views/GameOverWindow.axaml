@@ -1,0 +1,29 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Pacman_Game.Views.GameOverWindow"
+        Title="Game Over"
+        Width="450"
+        Height="350">
+	<Panel Background="#0c0c44">
+		<StackPanel Margin="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+			<Image Source="/Assets/titles/Game_Over_titles.png" Width="300" HorizontalAlignment="Center" Margin="0,0,0,30"/>
+
+			<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="15">
+				<Button x:Name="RestartButton" Content="Reiniciar Juego" Click="RestartButton_Click"
+                        Width="180" Height="40"
+                        Background="#FFCC00" Foreground="Black"
+                        FontSize="16" FontWeight="Bold"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Cursor="Hand"/>
+				<Button x:Name="MenuButton" Content="Volver al Menú" Click="MenuButton_Click"
+                        Width="180" Height="40"
+                        Background="#FFCC00" Foreground="Black"
+                        FontSize="16" FontWeight="Bold"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Cursor="Hand"/>
+			</StackPanel>
+		</StackPanel>
+	</Panel>
+</Window>

@@ -16,13 +16,11 @@
 		<vm:MainViewModel/>
 	</Design.DataContext>
 
-	<!-- Fondo con imagen -->
 	<Window.Background>
 		<ImageBrush Stretch="UniformToFill" Source="avares://Pacman_Game/Assets/background/background_menu.png"/>
 	</Window.Background>
 
 	<Grid>
-		<!-- Panel principal con márgenes -->
 		<Border Margin="40" Background="#20000000" CornerRadius="15">
 			<StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
 				<Image Source="avares://Pacman_Game/Assets/titles/Pac-Man_title.png"

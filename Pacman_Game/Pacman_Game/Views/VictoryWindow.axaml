@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Pacman_Game.Views.VictoryWindow"
+        Width="450" Height="450"
+        Title="¡Victoria!"
+        WindowStartupLocation="CenterScreen">
+	<Panel Background="#0c0c44">
+		<StackPanel Margin="20" Spacing="15" HorizontalAlignment="Center">
+			<!-- Título como imagen -->
+			<Image Source="/Assets/titles/Victory_titles.png" Width="300" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+
+			<TextBlock x:Name="ScoreTextBlock" FontSize="16" Foreground="White" HorizontalAlignment="Center" />
+
+			<TextBlock Text="Ingresa tu nombre:" FontSize="14" Foreground="White" />
+			<TextBox x:Name="NameTextBox" FontSize="14" Watermark="Tu nombre" Width="250" HorizontalAlignment="Center" />
+
+			<!-- Botones con formato específico -->
+			<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="20" Margin="0,30,0,0">
+				<Button x:Name="RestartButton" Content="Reiniciar"/>
+				<Button x:Name="MenuButton" Content="Menú Principal"/>
+				<Button x:Name="SaveScoreButton" Content="Guardar Puntuación"/>
+			</StackPanel>
+		</StackPanel>
+	</Panel>
+</Window>

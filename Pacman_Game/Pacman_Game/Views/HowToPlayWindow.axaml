@@ -2,33 +2,64 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Pacman_Game.Views.HowToPlayWindow"
         Title="Cómo Jugar"
-        Width="600"
-        Height="600">
+        Width="700"
+        Height="700">
 	<Panel Background="#0c0c44">
-		<StackPanel Margin="20" Spacing="15">
-			<!-- Título como imagen -->
-			<Image Source="/Assets/titles/Tutorial_titles.png" Width="400" HorizontalAlignment="Center"/>
+		<ScrollViewer VerticalScrollBarVisibility="Auto">
+			<StackPanel Margin="20" Spacing="15">
+				<Image Source="/Assets/titles/Tutorial_titles.png" Width="400" HorizontalAlignment="Center"/>
 
-			<!-- Contenido de instrucciones -->
-			<TextBlock Text="Controles:" FontSize="18" Foreground="White"/>
-			<TextBlock Text="- Flechas para mover a Pac-Man" Foreground="White"/>
-			<TextBlock Text="- R para reiniciar el juego" Foreground="White"/>
-			<TextBlock Text="- ESC para salir" Foreground="White"/>
+				<TextBlock Text="¿Qué es Pac-Man?" FontSize="20" Foreground="White" FontWeight="Bold"/>
+				<TextBlock Text="Pac-Man es un videojuego clásico de arcade lanzado en 1980 por Namco. El jugador controla a un personaje amarillo en forma de círculo que debe recorrer un laberinto comiendo puntos mientras evita a los fantasmas. Esta versión que estás jugando es una réplica del clásico Pac-Man, creada para revivir la experiencia original y mantener la diversión intacta, adaptada para un formato moderno o educativo."
+                         Foreground="White" TextWrapping="Wrap"/>
+				<Image Source="/Assets/tutorial/image_1_tutorial.png" Width="400" HorizontalAlignment="Center"/>
 
-			<TextBlock Text="Objetivo:" FontSize="18" Foreground="White" Margin="0,20,0,0"/>
-			<TextBlock Text="Come todos los puntos y evita a los fantasmas." Foreground="White"
-                       TextWrapping="Wrap"/>
+				<TextBlock Text="Cómo se juega Pac-Man" FontSize="20" Foreground="White" FontWeight="Bold" Margin="0,20,0,0"/>
+				<TextBlock Text="Pac-Man es un clásico juego de arcade en el que controlas a un personaje amarillo que se mueve por un laberinto. El objetivo principal es comer todos los puntos (también llamados 'pellets') mientras evitas a los fantasmas que patrullan el laberinto."
+                         Foreground="White" TextWrapping="Wrap"/>
+				
+				<TextBlock Text="Reglas básicas:" FontSize="18" Foreground="White" FontWeight="Bold" Margin="0,15,0,0"/>
 
-			<!-- Botón para volver -->
-			<Button Content="Volver al Menú" Click="BackButton_Click"
-			Width="180" Height="40"
-			Background="#FFCC00" Foreground="Black"
-			FontSize="16" FontWeight="Bold"
-			HorizontalContentAlignment="Center"
-			VerticalContentAlignment="Center"
-			HorizontalAlignment="Center"
-			Cursor="Hand"/>
+				<TextBlock Text="Mover a Pac-Man: Usa las flechas del teclado o los controles táctiles para mover a Pac-Man en las cuatro direcciones: arriba, abajo, izquierda y derecha."
+                         Foreground="White" TextWrapping="Wrap"/>
+				<Image Source="/Assets/tutorial/image_2_tutorial.png" Width="400" HorizontalAlignment="Center"/>
 
-		</StackPanel>
+				<TextBlock Text="Comer los puntos: Cada punto que Pac-Man come suma puntos. Terminar el nivel significa haber comido todos los puntos del laberinto."
+                         Foreground="White" TextWrapping="Wrap"/>
+				<Image Source="/Assets/tutorial/image_3_tutorial.png" Width="400" HorizontalAlignment="Center"/>
+				
+				<TextBlock Text="Evitar fantasmas: Hay cuatro fantasmas que persiguen a Pac-Man. Si uno te toca, pierdes una vida."
+                         Foreground="White" TextWrapping="Wrap"/>
+				<Image Source="/Assets/tutorial/image_4_tutorial.png" Width="400" HorizontalAlignment="Center"/>
+
+				<TextBlock Text="Puntos especiales: En cada esquina del laberinto hay 'superpuntos' o 'power pellets'. Comer uno permite a Pac-Man comer a los fantasmas por un tiempo limitado, otorgando puntos extra."
+                         Foreground="White" TextWrapping="Wrap"/>
+				<Image Source="/Assets/tutorial/image_5_tutorial.png" Width="400" HorizontalAlignment="Center"/>
+
+				<TextBlock Text="Vidas: Empiezas con varias vidas. El juego termina cuando las pierdes todas."
+                         Foreground="White" TextWrapping="Wrap"/>
+				<Image Source="/Assets/tutorial/image_6_tutorial.png" Width="400" HorizontalAlignment="Center"/>
+
+				<TextBlock Text="Consejos rápidos:" FontSize="18" Foreground="White" FontWeight="Bold" Margin="0,15,0,0"/>
+				<TextBlock Text="• Planea tus rutas para no quedar atrapado por los fantasmas." Foreground="White"/>
+				<TextBlock Text="• Aprovecha los superpuntos para ganar puntos extra y despejar áreas peligrosas." Foreground="White"/>
+				<TextBlock Text="• Memoriza los patrones de movimiento de los fantasmas para anticiparte a ellos." Foreground="White"/>
+
+				<TextBlock Text="Controles:" FontSize="18" Foreground="White" FontWeight="Bold" Margin="0,15,0,0"/>
+				<TextBlock Text="- Flechas para mover a Pac-Man" Foreground="White"/>
+				<TextBlock Text="- R para reiniciar el juego" Foreground="White"/>
+				<TextBlock Text="- ESC para salir" Foreground="White"/>
+
+				<Button Content="Volver al Menú" Click="BackButton_Click"
+                        Width="180" Height="40"
+                        Background="#FFCC00" Foreground="Black"
+                        FontSize="16" FontWeight="Bold"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Margin="0,20,0,0"
+                        Cursor="Hand"/>
+			</StackPanel>
+		</ScrollViewer>
 	</Panel>
 </Window>

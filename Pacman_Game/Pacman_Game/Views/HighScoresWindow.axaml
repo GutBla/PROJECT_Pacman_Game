@@ -6,10 +6,8 @@
         Height="600">
 	<Panel Background="#0c0c44">
 		<StackPanel Margin="20" Spacing="15">
-			<!-- Título como imagen -->
 			<Image Source="/Assets/titles/High_Scores_titles.png" Width="400" HorizontalAlignment="Center"/>
 
-			<!-- Lista de puntuaciones -->
 			<ItemsControl x:Name="ScoresList" Background="Transparent">
 				<ItemsControl.ItemTemplate>
 					<DataTemplate>
@@ -28,7 +26,6 @@
 				</ItemsControl.ItemTemplate>
 			</ItemsControl>
 
-			<!-- Botón para volver -->
 			<Button Content="Volver al Menú" Click="BackButton_Click"
 					Width="180" Height="40"
 					Background="#FFCC00" Foreground="Black"

@@ -20,6 +20,5 @@
 
   <ItemGroup>
     <Folder Include="Assets\scores\" />
-    <Folder Include="Services\" />
   </ItemGroup>
 </Project>

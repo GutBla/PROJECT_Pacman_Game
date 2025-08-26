@@ -1,5 +1,7 @@
-﻿using Avalonia.Threading;
+﻿using Avalonia.Controls;
+using Avalonia.Threading;
 using Pacman_Game.Models;
+using Pacman_Game.Views;
 using ReactiveUI;
 using System;
 using System.Collections.Generic;
@@ -9,7 +11,7 @@ namespace Pacman_Game.ViewModels
     public class GameViewModel : ViewModelBase
     {
         private int score;
-        private int lives = 3;
+        private int lives = 100;
         private int dotsEaten = 0;
         private bool isPowerPelletActive = false;
         private DispatcherTimer powerPelletTimer;
@@ -17,6 +19,8 @@ namespace Pacman_Game.ViewModels
         private DispatcherTimer _fruitTimer;
         private DispatcherTimer _gameTimer;
         private Random _random = new Random();
+        private bool _isGameOver;
+        private bool _isVictory;
 
         public DateTime? DeathTime
         {
@@ -29,6 +33,19 @@ namespace Pacman_Game.ViewModels
         public int[,] GameMap { get; private set; }
         public string[,] MapTextures { get; private set; }
         public string[,] Elements { get; private set; }
+        public event EventHandler RequestClose;
+
+        public bool IsGameOver
+        {
+            get => _isGameOver;
+            set => this.RaiseAndSetIfChanged(ref _isGameOver, value);
+        }
+
+        public bool IsVictory
+        {
+            get => _isVictory;
+            set => this.RaiseAndSetIfChanged(ref _isVictory, value);
+        }
 
         public int Score
         {
@@ -44,6 +61,13 @@ namespace Pacman_Game.ViewModels
 
         public GameViewModel()
         {
+            _gameTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(Config.GameSpeed)
+            };
+            _gameTimer.Tick += (s, e) => UpdateGame();
+            _gameTimer.Start();
+
             InitializeGame();
 
             powerPelletTimer = new DispatcherTimer
@@ -51,12 +75,6 @@ namespace Pacman_Game.ViewModels
                 Interval = TimeSpan.FromSeconds(10)
             };
             powerPelletTimer.Tick += (s, e) => EndPowerPellet();
-            _gameTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(100)
-            };
-            _gameTimer.Tick += (s, e) => UpdateGame();
-            _gameTimer.Start();
         }
 
         private void UpdateGame()
@@ -71,10 +89,11 @@ namespace Pacman_Game.ViewModels
             InitializeGhosts();
             ResetPacmanPosition();
             Score = 0;
-            Lives = 3;
+            Lives = Config.InitialLives;
             dotsEaten = 0;
             isPowerPelletActive = false;
-
+            IsGameOver = false;
+            IsVictory = false;
             _fruitTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(10)
@@ -93,7 +112,7 @@ namespace Pacman_Game.ViewModels
 
         private void SpawnRandomFruit()
         {
-            if (Elements == null || Elements.GetLength(0) == 0)
+            if (Elements == null || Elements.GetLength(0) == 0 || IsGameOver || IsVictory)
             {
                 return;
             }
@@ -191,6 +210,8 @@ namespace Pacman_Game.ViewModels
 
         public void Update()
         {
+            if (IsGameOver || IsVictory) return;
+
             Pacman.Move(GameMap);
             CheckElementCollision();
             HandleTeleports();
@@ -200,6 +221,16 @@ namespace Pacman_Game.ViewModels
                 ghost.ChasePacman(Pacman, GameMap);
                 CheckPacmanGhostCollision(ghost);
             }
+
+            CheckVictoryCondition();
+
+            if (Lives <= 0 && !IsGameOver)
+            {
+                IsGameOver = true;
+                _gameTimer.Stop();
+                _fruitTimer.Stop();
+                ShowGameOverWindow();
+            }
         }
 
         private void HandleTeleports()
@@ -207,7 +238,6 @@ namespace Pacman_Game.ViewModels
             if (Pacman.X < 0) Pacman.X = GameMap.GetLength(1) - 1;
             if (Pacman.X >= GameMap.GetLength(1)) Pacman.X = 0;
         }
-
         private void InitializeMap()
         {
             GameMap = new int[,]
@@ -368,6 +398,58 @@ namespace Pacman_Game.ViewModels
                     }
                 }
             }
+        }
+
+        private void CheckVictoryCondition()
+        {
+            bool allDotsEaten = true;
+
+            for (int y = 0; y < Elements.GetLength(0); y++)
+            {
+                for (int x = 0; x < Elements.GetLength(1); x++)
+                {
+                    if (Elements[y, x] == "PD" || Elements[y, x] == "PP")
+                    {
+                        allDotsEaten = false;
+                        break;
+                    }
+                }
+                if (!allDotsEaten) break;
+            }
+
+            if (allDotsEaten && !IsVictory)
+            {
+                IsVictory = true;
+                _gameTimer.Stop();
+                _fruitTimer.Stop();
+                ShowVictoryWindow();
+            }
+        }
+
+        private void ShowVictoryWindow()
+        {
+            Console.WriteLine("ShowVictoryWindow llamado");
+            Dispatcher.UIThread.Post(() =>
+            {
+                Console.WriteLine("Creando VictoryWindow");
+                var victoryWindow = new VictoryWindow(Score);
+                victoryWindow.Show();
+                Console.WriteLine("VictoryWindow mostrada");
+            });
+        }
+
+        private void ShowGameOverWindow()
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                var gameOverWindow = new GameOverWindow();
+                gameOverWindow.Show();
+            });
+        }
+
+        private void CloseGameWindow()
+        {
+            RequestClose?.Invoke(this, EventArgs.Empty);
         }
 
         private void ResetPositions()
