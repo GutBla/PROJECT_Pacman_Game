@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Reactive;
 using System.Threading;
 using System.Threading.Tasks;
+using Pacman_Game.Managers;
 using System.Linq;
 
 namespace Pacman_Game.ViewModels
@@ -75,7 +76,7 @@ namespace Pacman_Game.ViewModels
 
         public GameViewModel()
         {
-
+            SoundManager.Instance.PlaySound("beginning");
             _gameTimer.Interval = TimeSpan.FromMilliseconds(Config.GameSpeed);
             _gameTimer.Tick += (s, e) => UpdateGame();
             _gameTimer.Start();
@@ -250,8 +251,7 @@ namespace Pacman_Game.ViewModels
                 fruitTimer.Start();
             }
         }
-
-        public void CheckElementCollision()
+        private void CheckElementCollision()
         {
             if (GameMap == null || Elements == null || Elements.GetLength(0) == 0) return;
 
@@ -266,49 +266,59 @@ namespace Pacman_Game.ViewModels
             string elementType = Elements[y, x] ?? string.Empty;
             if (string.IsNullOrEmpty(elementType)) return;
 
-            var itemFactory = new ItemFactory();
-            GameItem? item = itemFactory.CreateItem(elementType, x, y);
-
-            if (item != null)
+            if (elementType == "PD" || elementType == "PP" ||
+                elementType == "cherry" || elementType == "strawberry" ||
+                elementType == "orange" || elementType == "apple" ||
+                elementType == "melon" || elementType == "galaxian" ||
+                elementType == "bell" || elementType == "key")
             {
                 switch (elementType)
                 {
                     case "PD":
                         Score += 10;
                         dotsEaten++;
+                        SoundManager.Instance.PlaySound("chomp");
                         break;
                     case "PP":
                         Score += 50;
                         ActivatePowerPellet();
+                        SoundManager.Instance.PlaySound("extrapac");
                         break;
                     case "cherry":
                         Score += 100;
+                        SoundManager.Instance.PlaySound("eatfruit");
                         break;
                     case "strawberry":
                         Score += 300;
+                        SoundManager.Instance.PlaySound("eatfruit");
                         break;
                     case "orange":
                         Score += 500;
+                        SoundManager.Instance.PlaySound("eatfruit");
                         break;
                     case "apple":
                         Score += 700;
+                        SoundManager.Instance.PlaySound("eatfruit");
                         break;
                     case "melon":
                         Score += 1000;
+                        SoundManager.Instance.PlaySound("eatfruit");
                         break;
                     case "galaxian":
                         Score += 2000;
+                        SoundManager.Instance.PlaySound("eatfruit");
                         break;
                     case "bell":
                         Score += 3000;
+                        SoundManager.Instance.PlaySound("eatfruit");
                         break;
                     case "key":
                         Score += 5000;
+                        SoundManager.Instance.PlaySound("eatfruit");
                         break;
                 }
-
                 Elements[y, x] = string.Empty;
-
+                GameMap.Elements[y, x] = string.Empty;
                 this.RaisePropertyChanged(nameof(GameMap));
                 this.RaisePropertyChanged(nameof(Score));
             }
@@ -515,11 +525,10 @@ namespace Pacman_Game.ViewModels
                 if (ghost.State == GhostState.Frightened)
                 {
                     ghost.State = GhostState.Eaten;
-
                     int points = 200 * (int)Math.Pow(2, _ghostsEatenDuringPower);
                     Score += points;
                     _ghostsEatenDuringPower++;
-
+                    SoundManager.Instance.PlaySound("eatghost");
                     this.RaisePropertyChanged(nameof(Score));
                 }
                 else if (ghost.State != GhostState.Eaten && !Pacman.IsDying)
@@ -529,6 +538,7 @@ namespace Pacman_Game.ViewModels
                     DeathTime = DateTime.Now;
                     Pacman.IsDying = true;
                     _gameLoopCts.Cancel();
+                    SoundManager.Instance.PlaySound("death");
                     PlayDeathAnimation();
                 }
             }
@@ -558,6 +568,7 @@ namespace Pacman_Game.ViewModels
                 IsVictory = true;
                 _gameTimer?.Stop();
                 _fruitTimer?.Stop();
+                SoundManager.Instance.PlaySound("intermission");
                 ShowVictoryWindow();
             }
         }

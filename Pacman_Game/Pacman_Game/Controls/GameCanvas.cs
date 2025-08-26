@@ -55,14 +55,11 @@ namespace Pacman_Game.Controls
         public override void Render(DrawingContext context)
         {
             base.Render(context);
-
             if (_viewModel == null || _viewModel.MapTextures == null || _viewModel.GameMap == null)
             {
                 return;
             }
-
             var vm = _viewModel!;
-
             Color backgroundColor = Color.Parse("#04041a");
             var backgroundBrush = new SolidColorBrush(backgroundColor);
             context.FillRectangle(backgroundBrush, new Rect(0, 0, Bounds.Width, Bounds.Height));
@@ -172,9 +169,10 @@ namespace Pacman_Game.Controls
             if (pacman == null) return;
 
             var spriteManager = SpriteManager.Instance;
-            int drawX = (int)pacman.X;
-            int drawY = (int)pacman.Y;
-            var rect = new Rect(drawX * cellSize, drawY * cellSize, cellSize, cellSize);
+
+            double drawX = pacman.X * cellSize;
+            double drawY = pacman.Y * cellSize;
+            var rect = new Rect(drawX, drawY, cellSize, cellSize);
 
             if (pacman.IsDying)
             {
@@ -187,11 +185,9 @@ namespace Pacman_Game.Controls
             else
             {
                 if (spriteManager.PacmanSprites.TryGetValue(pacman.CurrentDirection, out Bitmap[]? frames) &&
-                    frames != null)
+                    frames != null && frames.Length > 0)
                 {
-                    int frameIndex = _currentFrame % 3;
-                    // protejemos por si frames tiene menos elementos
-                    frameIndex = frameIndex % Math.Max(1, frames.Length);
+                    int frameIndex = _currentFrame % frames.Length;
                     context.DrawImage(frames[frameIndex], rect);
                 }
             }
@@ -201,47 +197,50 @@ namespace Pacman_Game.Controls
         {
             var ghosts = viewModel.Ghosts;
             if (ghosts == null) return;
+
             var spriteManager = SpriteManager.Instance;
 
             foreach (var ghost in ghosts)
             {
                 if (ghost == null) continue;
 
-                int drawX = (int)ghost.X;
-                int drawY = (int)ghost.Y;
-                var rect = new Rect(drawX * cellSize, drawY * cellSize, cellSize, cellSize);
+                double drawX = ghost.X * cellSize;
+                double drawY = ghost.Y * cellSize;
+                var rect = new Rect(drawX, drawY, cellSize, cellSize);
 
-                if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out Dictionary<GhostState, Bitmap[]>? states) &&
-                    states?.TryGetValue(ghost.State, out Bitmap[]? frames) == true &&
-                    frames != null && frames.Length > 0)
+                Bitmap? frame = null;
+
+                if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out Dictionary<GhostState, Bitmap[]>? states))
                 {
-                    Bitmap? frame = null;
-
                     if (ghost.State == GhostState.Eaten)
                     {
-                        frame = ghost.CurrentDirection switch
+                        if (spriteManager.GhostEyesSprites.TryGetValue(ghost.CurrentDirection, out Bitmap? eyesSprite))
                         {
-                            Direction.Left => frames.Length > 1 ? frames[1] : frames[0],
-                            Direction.Up => frames.Length > 2 ? frames[2] : frames[0],
-                            Direction.Down => frames.Length > 3 ? frames[3] : frames[0],
-                            _ => frames[0]
-                        };
+                            frame = eyesSprite;
+                        }
                     }
-                    else if (ghost.State == GhostState.Frightened)
+                    else if (states.TryGetValue(ghost.State, out Bitmap[]? frames) && frames != null && frames.Length > 0)
                     {
-                        int frameIndex = _currentFrame % 4;
-                        frame = frames.Length > frameIndex ? frames[frameIndex] : frames[0];
+                        if (ghost.State == GhostState.Frightened)
+                        {
+                            int frameIndex = _currentFrame % frames.Length;
+                            frame = frames[frameIndex];
+                        }
+                        else
+                        {
+                            if (spriteManager.GhostNormalSprites.TryGetValue((ghost.Color, ghost.CurrentDirection), out Bitmap[]? normalFrames) &&
+                                normalFrames != null && normalFrames.Length > 0)
+                            {
+                                int frameIndex = _currentFrame % normalFrames.Length;
+                                frame = normalFrames[frameIndex];
+                            }
+                        }
                     }
-                    else
-                    {
-                        int frameIndex = _currentFrame % 2;
-                        frame = frames.Length > frameIndex ? frames[frameIndex] : frames[0];
-                    }
+                }
 
-                    if (frame != null)
-                    {
-                        context.DrawImage(frame, rect);
-                    }
+                if (frame != null)
+                {
+                    context.DrawImage(frame, rect);
                 }
             }
         }

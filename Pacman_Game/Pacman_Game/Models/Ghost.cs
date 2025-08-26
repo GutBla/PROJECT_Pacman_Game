@@ -145,8 +145,8 @@ namespace Pacman_Game.Models
             foreach (var dir in directions)
             {
                 var (newX, newY) = CalculateNewPosition(dir);
-                int intX = (int)newX;
-                int intY = (int)newY;
+                int intX = (int)Math.Round(newX);
+                int intY = (int)Math.Round(newY);
 
                 if (!IsValidMove(intX, intY, map) || map.IsBlocking(intX, intY))
                 {
@@ -165,6 +165,7 @@ namespace Pacman_Game.Models
             {
                 bestDirection = OppositeDirection(CurrentDirection);
             }
+
             MoveInDirection(bestDirection, map);
         }
 
@@ -213,13 +214,13 @@ namespace Pacman_Game.Models
             CurrentDirection = direction;
 
             var (nextX, nextY) = CalculateNewPosition(CurrentDirection);
-            int intX = (int)nextX;
-            int intY = (int)nextY;
+            int intX = (int)Math.Round(nextX);
+            int intY = (int)Math.Round(nextY);
 
             if (IsValidMove(intX, intY, map))
             {
-                X = intX;
-                Y = intY;
+                X = nextX;
+                Y = nextY;
             }
         }
 

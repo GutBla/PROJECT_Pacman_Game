@@ -15,6 +15,7 @@
     <Compile Remove="Assets\scores\**" />
     <EmbeddedResource Remove="Assets\scores\**" />
     <None Remove="Assets\scores\**" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 
   <ItemGroup>

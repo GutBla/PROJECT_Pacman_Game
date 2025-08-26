@@ -19,6 +19,9 @@ namespace Pacman_Game.Managers
         public Dictionary<GhostColor, Dictionary<GhostState, Bitmap[]>> GhostSprites { get; private set; } = new();
         public Dictionary<string, Bitmap> TextureMap { get; private set; } = new();
         public Dictionary<string, Bitmap> FruitSprites { get; private set; } = new();
+        public Dictionary<(GhostColor, Direction), Bitmap[]> GhostNormalSprites { get; private set; } = new();
+        public Dictionary<Direction, Bitmap> GhostEyesSprites { get; private set; } = new();
+
         public Bitmap[] PacmanDeathSprites { get; private set; } = Array.Empty<Bitmap>();
         public Bitmap DotSprite { get; private set; } = CreateFallbackTexture(16, 16, Colors.Magenta);
         public Bitmap PowerPelletSprite { get; private set; } = CreateFallbackTexture(16, 16, Colors.Magenta);
@@ -85,6 +88,13 @@ namespace Pacman_Game.Managers
         {
             try
             {
+                // Cargar sprites de ojos de fantasmas
+                GhostEyesSprites[Direction.Right] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_right.png");
+                GhostEyesSprites[Direction.Left] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_left.png");
+                GhostEyesSprites[Direction.Up] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_up.png");
+                GhostEyesSprites[Direction.Down] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_down.png");
+
+                //  Sprites de Pacman
                 PacmanSprites[Direction.Right] = new[]
                 {
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_right_1.png"),
@@ -140,6 +150,7 @@ namespace Pacman_Game.Managers
                 FruitSprites["bell"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/bell.png");
                 FruitSprites["key"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/key.png");
 
+                // Tiles
                 LoadTexture("path", "Assets/tilesets/sprite_path.png");
 
                 LoadTexture("TL1", "tilesets/corner_top_left/corner_top_left_01");
@@ -168,6 +179,7 @@ namespace Pacman_Game.Managers
                 LoadTexture("V1", "tilesets/wall_vertical/wall_vertical_01");
                 LoadTexture("V2", "tilesets/wall_vertical/wall_vertical_02");
 
+                // Fantasmas
                 LoadGhostSprites(GhostColor.Red, "blinky");
                 LoadGhostSprites(GhostColor.Pink, "pinky");
                 LoadGhostSprites(GhostColor.Blue, "inky");
@@ -196,35 +208,27 @@ namespace Pacman_Game.Managers
         private void LoadGhostSprites(GhostColor color, string ghostName)
         {
             Dictionary<GhostState, Bitmap[]> states = new();
+            Dictionary<Direction, Bitmap[]> normalSprites = new();
 
-            Dictionary<Direction, Bitmap[]> normalSprites = new()
+            // Cargar sprites normales por dirección
+            foreach (Direction dir in Enum.GetValues(typeof(Direction)))
             {
-                [Direction.Up] = new[]
+                string dirName = dir.ToString().ToLower();
+                Bitmap[] frames = new[]
                 {
-                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_up_1.png"),
-                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_up_2.png")
-                },
-                [Direction.Down] = new[]
-                {
-                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_down_1.png"),
-                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_down_2.png")
-                },
-                [Direction.Left] = new[]
-                {
-                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_left_1.png"),
-                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_left_2.png")
-                },
-                [Direction.Right] = new[]
-                {
-                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_right_1.png"),
-                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_right_2.png")
-                }
-            };
+                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_{dirName}_1.png"),
+                    LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_{dirName}_2.png")
+                };
+                normalSprites[dir] = frames;
 
+                // Guardar en GhostNormalSprites
+                GhostNormalSprites[(color, dir)] = frames;
+            }
 
             states[GhostState.Chase] = normalSprites.Values.SelectMany(x => x).ToArray();
             states[GhostState.Scatter] = normalSprites.Values.SelectMany(x => x).ToArray();
 
+            // Sprites asustados
             Bitmap[] frightenedSprites = new[]
             {
                 LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_1.png"),
@@ -234,15 +238,8 @@ namespace Pacman_Game.Managers
             };
             states[GhostState.Frightened] = frightenedSprites;
 
-           
-            Dictionary<Direction, Bitmap> eyesSprites = new()
-            {
-                [Direction.Right] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_right.png"),
-                [Direction.Left] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_left.png"),
-                [Direction.Up] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_up.png"),
-                [Direction.Down] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_down.png")
-            };
-            states[GhostState.Eaten] = eyesSprites.Values.ToArray();
+            // Para Eaten usar los ojos
+            states[GhostState.Eaten] = GhostEyesSprites.Values.ToArray();
 
             GhostSprites[color] = states;
         }

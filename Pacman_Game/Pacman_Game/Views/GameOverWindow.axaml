@@ -3,7 +3,8 @@
         x:Class="Pacman_Game.Views.GameOverWindow"
         Title="Game Over"
         Width="450"
-        Height="350">
+        Height="350"
+		Icon="avares://Pacman_Game/Assets/custom/Pac-Man_icon.ico">
 	<Panel Background="#0c0c44">
 		<StackPanel Margin="20" HorizontalAlignment="Center" VerticalAlignment="Center">
 			<Image Source="/Assets/titles/Game_Over_titles.png" Width="300" HorizontalAlignment="Center" Margin="0,0,0,30"/>

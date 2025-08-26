@@ -4,40 +4,47 @@
         Title="Puntuaciones"
         Width="600"
         Height="600">
-	<Panel Background="#0c0c44">
-		<StackPanel Margin="20" Spacing="15">
-			<Image Source="/Assets/titles/High_Scores_titles.png"
-                   Width="400"
-                   HorizontalAlignment="Center"/>
+	<ScrollViewer HorizontalScrollBarVisibility="Auto"
+                  VerticalScrollBarVisibility="Auto">
+		<Panel Background="#0c0c44">
+			<StackPanel Margin="20" Spacing="15">
 
-			<Border Background="#1a1a5a" CornerRadius="10" Padding="10" Margin="0,20,0,0">
-				<DataGrid x:Name="ScoresDataGrid"
-                          AutoGenerateColumns="False"
-                          HeadersVisibility="Column"
-                          GridLinesVisibility="None"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          RowHeight="40"
-                          CanUserResizeColumns="False"
-                          CanUserSortColumns="False"
-                          IsReadOnly="True">
-					<DataGrid.Columns>
-						<DataGridTextColumn Header="Posición" Binding="{Binding Rank}" Width="120"/>
-						<DataGridTextColumn Header="Jugador" Binding="{Binding Name}" Width="200"/>
-						<DataGridTextColumn Header="Puntuación" Binding="{Binding Score}" Width="120"/>
-					</DataGrid.Columns>
-				</DataGrid>
-			</Border>
+				<Image Source="/Assets/titles/High_Scores_titles.png"
+                       Width="400"
+                       HorizontalAlignment="Center"/>
 
-			<Button Content="Volver al Menú"
-                    Click="BackButton_Click"
-                    Width="180" Height="40"
-                    Background="#FFCC00" Foreground="Black"
-                    FontSize="16" FontWeight="Bold"
-                    HorizontalContentAlignment="Center"
-                    VerticalContentAlignment="Center"
-                    HorizontalAlignment="Center"
-                    Cursor="Hand"/>
-		</StackPanel>
-	</Panel>
+				<Border Background="#1a1a5a" CornerRadius="10" Padding="10" Margin="0,20,0,0">
+					<StackPanel>
+						<StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+							<TextBlock Text="Posición" Width="100" Foreground="#FFCC00" FontWeight="Bold"/>
+							<TextBlock Text="Jugador" Width="300" Foreground="#FFCC00" FontWeight="Bold"/>
+							<TextBlock Text="Puntuación" Width="100" Foreground="#FFCC00" FontWeight="Bold"/>
+						</StackPanel>
+
+						<ListBox ItemsSource="{Binding Scores}" Background="Transparent" BorderThickness="0">
+							<ListBox.ItemTemplate>
+								<DataTemplate>
+									<StackPanel Orientation="Horizontal">
+										<TextBlock Text="{Binding Rank}" Width="100" Foreground="White"/>
+										<TextBlock Text="{Binding Name}" Width="300" Foreground="White"/>
+										<TextBlock Text="{Binding Score}" Width="100" Foreground="White"/>
+									</StackPanel>
+								</DataTemplate>
+							</ListBox.ItemTemplate>
+						</ListBox>
+					</StackPanel>
+				</Border>
+
+				<Button Content="Volver al Menú"
+                        Click="BackButton_Click"
+                        Width="180" Height="40"
+                        Background="#FFCC00" Foreground="Black"
+                        FontSize="16" FontWeight="Bold"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Cursor="Hand"/>
+			</StackPanel>
+		</Panel>
+	</ScrollViewer>
 </Window>

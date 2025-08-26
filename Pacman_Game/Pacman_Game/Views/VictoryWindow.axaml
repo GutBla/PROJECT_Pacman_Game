@@ -3,7 +3,8 @@
         x:Class="Pacman_Game.Views.VictoryWindow"
         Width="450" Height="450"
         Title="¡Victoria!"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+		Icon="avares://Pacman_Game/Assets/custom/Pac-Man_icon.ico">
 	<Panel Background="#0c0c44">
 		<StackPanel Margin="20" Spacing="15" HorizontalAlignment="Center">
 			<Image Source="/Assets/titles/Victory_titles.png" Width="300" HorizontalAlignment="Center" Margin="0,0,0,20"/>

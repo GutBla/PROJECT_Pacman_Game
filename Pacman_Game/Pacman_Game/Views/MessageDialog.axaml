@@ -3,7 +3,8 @@
         x:Class="Pacman_Game.Views.MessageDialog"
         Title="Mensaje"
         Width="300"
-        Height="150">
+        Height="150"
+		Icon="avares://Pacman_Game/Assets/custom/Pac-Man_icon.ico">
 	<StackPanel Margin="10" >
 		<TextBlock x:Name="MessageText" Margin="10" TextWrapping="Wrap"/>
 		<Button Content="OK" Click="OKButton_Click"

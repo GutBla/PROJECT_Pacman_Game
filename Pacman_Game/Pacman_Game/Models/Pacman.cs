@@ -29,36 +29,35 @@ namespace Pacman_Game.Models
         {
             IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
             var (nextX, nextY) = CalculateNewPosition(NextDirection);
-            int intNextX = (int)nextX;
-            int intNextY = (int)nextY;
+            int intNextX = (int)Math.Round(nextX);
+            int intNextY = (int)Math.Round(nextY);
 
             if (IsValidMove(intNextX, intNextY, map))
             {
                 CurrentDirection = NextDirection;
-                X = intNextX;
-                Y = intNextY;
+                X = nextX;
+                Y = nextY;
             }
             else
             {
                 var (newPosX, newPosY) = CalculateNewPosition(CurrentDirection);
-                int intNewPosX = (int)newPosX;
-                int intNewPosY = (int)newPosY;
+                int intNewPosX = (int)Math.Round(newPosX);
+                int intNewPosY = (int)Math.Round(newPosY);
 
                 if (IsValidMove(intNewPosX, intNewPosY, map))
                 {
-                    X = intNewPosX;
-                    Y = intNewPosY;
+                    X = newPosX;
+                    Y = newPosY;
                 }
             }
-
             if (X < 0) X = map.Width - 1;
             if (X >= map.Width) X = 0;
         }
-
         private new bool IsValidMove(int x, int y, Map map)
         {
-            if (x < 0) x = map.Width - 1;
-            if (x >= map.Width) x = 0;
+            if (x < 0) return true;
+            if (x >= map.Width) return true;
+
             return y >= 0 && y < map.Height && !map.IsBlocking(x, y);
         }
 

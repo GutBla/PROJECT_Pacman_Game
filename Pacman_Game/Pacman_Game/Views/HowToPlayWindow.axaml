@@ -3,7 +3,8 @@
         x:Class="Pacman_Game.Views.HowToPlayWindow"
         Title="Cómo Jugar"
         Width="700"
-        Height="700">
+        Height="700"
+		Icon="avares://Pacman_Game/Assets/custom/Pac-Man_icon.ico">
 	<Panel Background="#0c0c44">
 		<ScrollViewer VerticalScrollBarVisibility="Auto">
 			<StackPanel Margin="20" Spacing="15">

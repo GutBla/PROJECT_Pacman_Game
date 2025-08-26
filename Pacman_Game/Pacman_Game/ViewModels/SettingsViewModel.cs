@@ -1,4 +1,5 @@
-﻿using ReactiveUI;
+﻿using Pacman_Game.Managers;
+using ReactiveUI;
 
 namespace Pacman_Game.ViewModels
 {
@@ -25,7 +26,11 @@ namespace Pacman_Game.ViewModels
         public int Volume
         {
             get => _volume;
-            set => this.RaiseAndSetIfChanged(ref _volume, value);
+            set
+            {
+                this.RaiseAndSetIfChanged(ref _volume, value);
+                SoundManager.Instance.SetVolume(value / 100f);
+            }
         }
 
         public string Difficulty
@@ -37,7 +42,11 @@ namespace Pacman_Game.ViewModels
         public bool IsMuted
         {
             get => _isMuted;
-            set => this.RaiseAndSetIfChanged(ref _isMuted, value);
+            set
+            {
+                this.RaiseAndSetIfChanged(ref _isMuted, value);
+                SoundManager.Instance.SetVolume(value ? 0f : _volume / 100f);
+            }
         }
 
         public SettingsViewModel()
