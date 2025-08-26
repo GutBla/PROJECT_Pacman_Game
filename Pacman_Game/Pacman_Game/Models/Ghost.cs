@@ -17,9 +17,6 @@ namespace Pacman_Game.Models
 
         private Random random = new Random();
         private int _stateTimer = 0;
-        private const int SCATTER_DURATION = 70;
-        private const int CHASE_DURATION = 200;
-        private const int SCATTER_SHORT_DURATION = 50;
         private int _scatterCount = 0;
         private const int MAX_SCATTER_CYCLES = 4;
 
@@ -220,7 +217,6 @@ namespace Pacman_Game.Models
             }
         }
 
-        // Ejecuta el movimiento real y maneja túneles
         private void MoveInDirection(Direction direction, Map map)
         {
             IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
@@ -349,7 +345,12 @@ namespace Pacman_Game.Models
     public class Inky : Ghost
     {
         private Blinky blinky;
-        public Inky(double x, double y, Blinky blinky) : base(GhostColor.Blue, x, y, 30) => this.blinky = blinky;
+        public Inky(double x, double y, Blinky blinky) : base(GhostColor.Blue, x, y, 30)
+        {
+            this.blinky = blinky;
+            SpawnPoint = (14, 14);
+        }
+
         protected override (double X, double Y) GetTargetPosition(Pacman pacman)
         {
             var (blX, blY) = (blinky.X, blinky.Y);
