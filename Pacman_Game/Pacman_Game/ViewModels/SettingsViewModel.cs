@@ -11,18 +11,21 @@ namespace Pacman_Game.ViewModels
         private string _difficulty = "Normal";
         private bool _isMuted;
 
+        // Número de vidas del jugador
         public int LivesCount
         {
             get => _livesCount;
             set => this.RaiseAndSetIfChanged(ref _livesCount, value);
         }
 
+        // Velocidad del juego
         public int GameSpeed
         {
             get => _gameSpeed;
             set => this.RaiseAndSetIfChanged(ref _gameSpeed, value);
         }
 
+        // Volumen de sonido
         public int Volume
         {
             get => _volume;
@@ -33,12 +36,14 @@ namespace Pacman_Game.ViewModels
             }
         }
 
+        // Nivel de dificultad del juego
         public string Difficulty
         {
             get => _difficulty;
             set => this.RaiseAndSetIfChanged(ref _difficulty, value);
         }
 
+        // Estado de silencio
         public bool IsMuted
         {
             get => _isMuted;
@@ -49,6 +54,7 @@ namespace Pacman_Game.ViewModels
             }
         }
 
+        // Inicializa valores por defecto
         public SettingsViewModel()
         {
             LivesCount = Config.InitialLives;
