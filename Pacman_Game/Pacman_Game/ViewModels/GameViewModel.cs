@@ -5,6 +5,8 @@ using Pacman_Game.Views;
 using ReactiveUI;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Pacman_Game.ViewModels
 {
@@ -21,6 +23,9 @@ namespace Pacman_Game.ViewModels
         private Random _random = new Random();
         private bool _isGameOver;
         private bool _isVictory;
+        private CancellationTokenSource _gameLoopCts;
+        private Task _pacmanTask;
+        private List<Task> _ghostTasks = new List<Task>();
 
         public DateTime? DeathTime
         {
@@ -75,6 +80,7 @@ namespace Pacman_Game.ViewModels
                 Interval = TimeSpan.FromSeconds(10)
             };
             powerPelletTimer.Tick += (s, e) => EndPowerPellet();
+            _gameLoopCts = new CancellationTokenSource();
         }
 
         private void UpdateGame()
@@ -100,6 +106,10 @@ namespace Pacman_Game.ViewModels
             };
             _fruitTimer.Tick += (s, e) => SpawnRandomFruit();
             _fruitTimer.Start();
+
+            _gameLoopCts?.Cancel();
+            _gameLoopCts = new CancellationTokenSource();
+            StartParallelGameLoop();
         }
 
         private void ResetPacmanPosition()
@@ -108,6 +118,67 @@ namespace Pacman_Game.ViewModels
             Pacman.Y = 23;
             Pacman.CurrentDirection = Direction.Right;
             Pacman.NextDirection = Direction.Right;
+        }
+
+        private void StartParallelGameLoop()
+        {
+            var token = _gameLoopCts.Token;
+
+            // Tarea para Pacman
+            _pacmanTask = Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested && !IsGameOver && !IsVictory)
+                {
+                    UpdatePacman();
+                    await Task.Delay(Config.GameSpeed, token);
+                }
+            }, token);
+
+            // Tareas para fantasmas
+            _ghostTasks.Clear();
+            foreach (var ghost in Ghosts)
+            {
+                var ghostTask = Task.Run(async () =>
+                {
+                    while (!token.IsCancellationRequested && !IsGameOver && !IsVictory)
+                    {
+                        UpdateGhost(ghost);
+                        await Task.Delay((int)(Config.GameSpeed * ghost.SpeedFactor), token);
+                    }
+                }, token);
+                _ghostTasks.Add(ghostTask);
+            }
+
+            // Tarea para verificación de colisiones y victoria
+            Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested && !IsGameOver && !IsVictory)
+                {
+                    CheckCollisionsAndVictory();
+                    await Task.Delay(Config.GameSpeed / 2, token);
+                }
+            }, token);
+        }
+
+        private void UpdatePacman()
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                Pacman.Move(GameMap);
+                CheckElementCollision();
+                HandleTeleports();
+            });
+        }
+
+        private void UpdateGhost(Ghost ghost)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!Pacman.IsDying)
+                {
+                    ghost.ChasePacman(Pacman, GameMap);
+                }
+            });
         }
 
         private void SpawnRandomFruit()
@@ -386,16 +457,15 @@ namespace Pacman_Game.ViewModels
                     ghost.State = GhostState.Eaten;
                     Score += 200;
                 }
-                else if (ghost.State != GhostState.Eaten)
+                else if (ghost.State != GhostState.Eaten && !Pacman.IsDying)
                 {
                     Lives--;
                     DeathTime = DateTime.Now;
+                    Pacman.IsDying = true;
 
-                    if (Lives > 0)
-                    {
-                        DispatcherTimer.RunOnce(() => ResetPositions(),
-                            TimeSpan.FromSeconds(2));
-                    }
+                    _gameLoopCts.Cancel();
+
+                    PlayDeathAnimation();
                 }
             }
         }
@@ -426,6 +496,24 @@ namespace Pacman_Game.ViewModels
             }
         }
 
+        private void CheckCollisionsAndVictory()
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                foreach (var ghost in Ghosts)
+                {
+                    CheckPacmanGhostCollision(ghost);
+                }
+                CheckVictoryCondition();
+
+                if (Lives <= 0 && !IsGameOver)
+                {
+                    IsGameOver = true;
+                    _gameLoopCts.Cancel();
+                    ShowGameOverWindow();
+                }
+            });
+        }
         private void ShowVictoryWindow()
         {
             Console.WriteLine("ShowVictoryWindow llamado");
@@ -460,6 +548,45 @@ namespace Pacman_Game.ViewModels
                 ghost.Reset();
             }
             DeathTime = null;
+        }
+
+        private async void PlayDeathAnimation()
+        {
+            var deathSprites = new string[]
+            {
+                "pacman_death_1.png",
+                "pacman_death_2.png",
+                "pacman_death_3.png",
+                "pacman_death_4.png",
+                "pacman_death_5.png",
+                "pacman_death_6.png",
+                "pacman_death_7.png",
+                "pacman_death_8.png",
+                "pacman_death_9.png",
+                "pacman_death_10.png",
+                "pacman_death_11.png"
+            };
+
+            for (int i = 0; i < deathSprites.Length; i++)
+            {
+                Pacman.DeathAnimationFrame = i;
+                await Task.Delay(100);
+            }
+
+            await Task.Delay(500);
+
+            if (Lives > 0)
+            {
+                ResetPositions();
+                Pacman.IsDying = false;
+                Pacman.DeathAnimationFrame = 0;
+                StartParallelGameLoop();
+            }
+            else
+            {
+                IsGameOver = true;
+                ShowGameOverWindow();
+            }
         }
     }
 }

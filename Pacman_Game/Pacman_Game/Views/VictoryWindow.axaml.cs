@@ -10,7 +10,6 @@ namespace Pacman_Game.Views
 {
     public partial class VictoryWindow : Window
     {
-        // Cambia a propiedad pública para que XAML pueda bindear si es necesario
         public int Score { get; set; }
 
         private TextBox _nameTextBox;
@@ -18,15 +17,12 @@ namespace Pacman_Game.Views
         private Button _menuButton;
         private Button _saveScoreButton;
 
-        // Constructor sin parámetros requerido por XAML
         public VictoryWindow()
         {
             InitializeComponent();
             this.AttachDevTools();
             this.Opened += VictoryWindow_Opened;
         }
-
-        // Constructor con parámetros que puedes usar desde código
         public VictoryWindow(int score) : this()
         {
             Score = score;
@@ -36,19 +32,16 @@ namespace Pacman_Game.Views
         {
             Console.WriteLine("VictoryWindow abierta - conectando eventos");
 
-            // Obtener referencias a los controles
             _nameTextBox = this.FindControl<TextBox>("NameTextBox");
             _restartButton = this.FindControl<Button>("RestartButton");
             _menuButton = this.FindControl<Button>("MenuButton");
             _saveScoreButton = this.FindControl<Button>("SaveScoreButton");
 
-            // Verificar que los controles se encontraron
             Console.WriteLine($"NameTextBox encontrado: {_nameTextBox != null}");
             Console.WriteLine($"RestartButton encontrado: {_restartButton != null}");
             Console.WriteLine($"MenuButton encontrado: {_menuButton != null}");
             Console.WriteLine($"SaveScoreButton encontrado: {_saveScoreButton != null}");
 
-            // Configurar eventos
             _restartButton.Click += (s, e) => RestartGame();
             _menuButton.Click += (s, e) => ReturnToMenu();
             _saveScoreButton.Click += (s, e) => SaveScore();

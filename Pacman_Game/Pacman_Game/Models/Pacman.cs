@@ -7,6 +7,8 @@ namespace Pacman_Game.Models
         public int Lives { get; set; } = 3;
         public int Score { get; set; }
         public double SpeedFactor { get; } = 1.0;
+        public bool IsDying { get; set; } = false;
+        public int DeathAnimationFrame { get; set; } = 0;
 
         public Pacman()
         {

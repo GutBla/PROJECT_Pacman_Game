@@ -16,7 +16,6 @@ namespace Pacman_Game.Views
 #endif
             DataContext = new GameViewModel();
 
-            // Manejar Escape para cerrar ventana
             this.KeyDown += (s, e) =>
             {
                 if (e.Key == Key.Escape)

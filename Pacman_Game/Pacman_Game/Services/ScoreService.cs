@@ -38,11 +38,9 @@ namespace Pacman_Game.Services
                 Console.WriteLine($"Ruta de ApplicationData: {Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)}");
                 Console.WriteLine($"Ruta completa de scores: {ScoresFile}");
 
-                // Verificar y crear directorio
                 Console.WriteLine($"Creando directorio: {ScoresDirectory}");
                 Directory.CreateDirectory(ScoresDirectory);
 
-                // Verificar si el directorio fue creado
                 bool directoryExists = Directory.Exists(ScoresDirectory);
                 Console.WriteLine($"¿Directorio existe después de crearlo? {directoryExists}");
 
@@ -68,7 +66,6 @@ namespace Pacman_Game.Services
 
                 File.WriteAllText(ScoresFile, json);
 
-                // Verificar si el archivo fue creado
                 bool fileExists = File.Exists(ScoresFile);
                 Console.WriteLine($"¿Archivo existe después de guardar? {fileExists}");
 

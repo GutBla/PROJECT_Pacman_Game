@@ -17,6 +17,7 @@ namespace Pacman_Game.Models
         private Random random = new Random();
         private DispatcherTimer stateTimer;
         private DispatcherTimer frightenedTimer;
+        private DispatcherTimer _frightenedEndingTimer;
 
         public (int X, int Y) SpawnPoint => (14, 14);
 
@@ -47,6 +48,15 @@ namespace Pacman_Game.Models
             {
                 if (State == GhostState.Frightened)
                     State = GhostState.Chase;
+            };
+
+            _frightenedEndingTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(8)
+            };
+            _frightenedEndingTimer.Tick += (s, e) =>
+            {
+
             };
         }
 
@@ -238,7 +248,10 @@ namespace Pacman_Game.Models
             if (State != GhostState.Eaten)
             {
                 State = GhostState.Frightened;
+                frightenedTimer.Stop();
                 frightenedTimer.Start();
+                _frightenedEndingTimer.Stop();
+                _frightenedEndingTimer.Start();
             }
         }
 

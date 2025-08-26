@@ -9,7 +9,6 @@
 			<Image Source="avares://Pacman_Game/Assets/titles/Configuración_titles.png"
                    Width="450" HorizontalAlignment="Center"/>
 
-			<!-- Jugabilidad Section -->
 			<TextBlock Text="Jugabilidad" Foreground="White" FontSize="18" FontWeight="Bold"/>
 
 			<TextBlock Text="Dificultad:" Foreground="White" FontSize="16"/>
@@ -38,7 +37,6 @@
                           HorizontalAlignment="Center" Foreground="White"/>
 			</StackPanel>
 
-			<!-- Sonido Section -->
 			<TextBlock Text="Sonido" Foreground="White" FontSize="18" FontWeight="Bold" Margin="0,20,0,0"/>
 
 			<TextBlock Text="Volumen general:" Foreground="White" FontSize="16"/>
@@ -47,7 +45,6 @@
 			<CheckBox Content="Mute / Silencio" IsChecked="{Binding IsMuted}"
                      Foreground="White" FontSize="16" Margin="0,10,0,0"/>
 
-			<!-- Buttons -->
 			<StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="20" Margin="0,30,0,0">
 				<Button Content="Aplicar" Click="ApplyButton_Click"
                         Width="180" Height="40"
