@@ -1,8 +1,9 @@
-﻿using System;
+﻿using Pacman_Game.Models;
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
-using Pacman_Game.Models;
 
 namespace Pacman_Game.Services
 {
@@ -11,81 +12,71 @@ namespace Pacman_Game.Services
         private static readonly string AppDataPath =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PacmanGame");
         private static readonly string ScoresDirectory = Path.Combine(AppDataPath, "scores");
-        private static readonly string ScoresFile = Path.Combine(ScoresDirectory, "List_Scores.json");
+        private static readonly string ScoresFile = Path.Combine(ScoresDirectory, "scores.txt");
 
         public static List<ScoreRecord> LoadScores()
         {
+            var scores = new List<ScoreRecord>();
+
             try
             {
                 if (!File.Exists(ScoresFile))
-                    return new List<ScoreRecord>();
+                    return scores;
 
-                var json = File.ReadAllText(ScoresFile);
-                return JsonSerializer.Deserialize<List<ScoreRecord>>(json) ?? new List<ScoreRecord>();
+                using (StreamReader reader = new StreamReader(ScoresFile))
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        var parts = line.Split('|');
+                        if (parts.Length == 3)
+                        {
+                            scores.Add(new ScoreRecord
+                            {
+                                Rank = int.Parse(parts[0]),
+                                Score = int.Parse(parts[1]),
+                                Name = parts[2]
+                            });
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error loading scores: {ex.Message}");
-                return new List<ScoreRecord>();
             }
+
+            return scores.OrderBy(s => s.Rank).ToList();
         }
 
         public static bool SaveScore(ScoreRecord newScore)
         {
             try
             {
-                Console.WriteLine("=== INICIANDO GUARDADO DE PUNTUACIÓN ===");
-                Console.WriteLine($"Ruta de ApplicationData: {Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)}");
-                Console.WriteLine($"Ruta completa de scores: {ScoresFile}");
-
-                Console.WriteLine($"Creando directorio: {ScoresDirectory}");
                 Directory.CreateDirectory(ScoresDirectory);
 
-                bool directoryExists = Directory.Exists(ScoresDirectory);
-                Console.WriteLine($"¿Directorio existe después de crearlo? {directoryExists}");
-
                 var scores = LoadScores();
-                Console.WriteLine($"Scores cargados: {scores.Count}");
-
                 scores.Add(newScore);
-                scores.Sort((a, b) => b.Score.CompareTo(a.Score));
 
-                for (int i = 0; i < scores.Count; i++)
+                // Keep only top 10 scores
+                var topScores = scores.OrderByDescending(s => s.Score)
+                                     .Take(10)
+                                     .ToList();
+
+                using (StreamWriter writer = new StreamWriter(ScoresFile, false))
                 {
-                    scores[i].Rank = i + 1;
+                    for (int i = 0; i < topScores.Count; i++)
+                    {
+                        topScores[i].Rank = i + 1;
+                        writer.WriteLine($"{topScores[i].Rank}|{topScores[i].Score}|{topScores[i].Name}");
+                    }
                 }
 
-                if (scores.Count > 10)
-                {
-                    scores = scores.GetRange(0, 10);
-                }
-
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                string json = JsonSerializer.Serialize(scores, options);
-                Console.WriteLine($"JSON a guardar: {json}");
-
-                File.WriteAllText(ScoresFile, json);
-
-                bool fileExists = File.Exists(ScoresFile);
-                Console.WriteLine($"¿Archivo existe después de guardar? {fileExists}");
-
-                if (fileExists)
-                {
-                    Console.WriteLine($"Tamaño del archivo: {new FileInfo(ScoresFile).Length} bytes");
-                }
-
-                Console.WriteLine("=== PUNTUACIÓN GUARDADA EXITOSAMENTE ===");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"=== ERROR AL GUARDAR ===");
-                Console.WriteLine($"Mensaje: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
-                }
+                Console.WriteLine($"Error saving score: {ex.Message}");
                 return false;
             }
         }
