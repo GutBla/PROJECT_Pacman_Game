@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Linq;
 
 namespace Pacman_Game.Models
 {
     public class GhostFactory
     {
-        private Blinky blinky;
+        private Blinky? blinky;
 
         public Ghost CreateGhost(GhostColor color, double x, double y)
         {

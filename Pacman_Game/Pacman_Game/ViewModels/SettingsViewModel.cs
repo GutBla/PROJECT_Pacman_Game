@@ -7,7 +7,7 @@ namespace Pacman_Game.ViewModels
         private int _livesCount;
         private int _gameSpeed;
         private int _volume;
-        private string _difficulty;
+        private string _difficulty = "Normal";
         private bool _isMuted;
 
         public int LivesCount

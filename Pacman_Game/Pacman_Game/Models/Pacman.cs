@@ -1,4 +1,5 @@
 ﻿using ReactiveUI;
+using System;
 
 namespace Pacman_Game.Models
 {
@@ -26,32 +27,35 @@ namespace Pacman_Game.Models
 
         public void Move(Map map)
         {
-            IsInTunnel = (Y >= 13.5 && Y <= 14.5) && (X < 1.5 || X > map.Width - 2.5);
-
+            IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
             var (nextX, nextY) = CalculateNewPosition(NextDirection);
             int intNextX = (int)nextX;
             int intNextY = (int)nextY;
 
-            if (IsValidMove(intNextX, intNextY, map) && !map.IsBlocking(intNextX, intNextY))
+            if (IsValidMove(intNextX, intNextY, map))
             {
                 CurrentDirection = NextDirection;
+                X = intNextX;
+                Y = intNextY;
             }
-
-            var (newPosX, newPosY) = CalculateNewPosition(CurrentDirection);
-            int intNewPosX = (int)newPosX;
-            int intNewPosY = (int)newPosY;
-
-            if (IsValidMove(intNewPosX, intNewPosY, map))
+            else
             {
-                X = newPosX;
-                Y = newPosY;
+                var (newPosX, newPosY) = CalculateNewPosition(CurrentDirection);
+                int intNewPosX = (int)newPosX;
+                int intNewPosY = (int)newPosY;
+
+                if (IsValidMove(intNewPosX, intNewPosY, map))
+                {
+                    X = intNewPosX;
+                    Y = intNewPosY;
+                }
             }
 
             if (X < 0) X = map.Width - 1;
             if (X >= map.Width) X = 0;
         }
 
-        private bool IsValidMove(int x, int y, Map map)
+        private new bool IsValidMove(int x, int y, Map map)
         {
             if (x < 0) x = map.Width - 1;
             if (x >= map.Width) x = 0;

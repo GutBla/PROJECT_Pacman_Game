@@ -48,7 +48,7 @@ namespace Pacman_Game.ViewModels
 
         private void CloseCurrentWindow()
         {
-            if (Application.Current.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 desktop.MainWindow?.Close();
             }

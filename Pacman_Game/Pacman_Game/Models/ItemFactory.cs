@@ -1,22 +1,20 @@
-﻿using System.Linq;
-
-namespace Pacman_Game.Models
+﻿namespace Pacman_Game.Models
 {
     public interface IItemFactory
     {
-        GameItem CreateItem(string itemType, int x, int y);
+        GameItem? CreateItem(string itemType, int x, int y);
     }
 
     public class ItemFactory : IItemFactory
     {
-public GameItem CreateItem(string type, int x, int y)
+        public GameItem? CreateItem(string type, int x, int y)
         {
             switch (type)
             {
                 case "PD":
-                    return new Dot(x, y);
+                    return new Dot(x, y) { Type = "PD" };
                 case "PP":
-                    return new PowerPellet(x, y);
+                    return new PowerPellet(x, y) { Type = "PP" };
                 case "cherry":
                 case "strawberry":
                 case "orange":
@@ -25,7 +23,7 @@ public GameItem CreateItem(string type, int x, int y)
                 case "galaxian":
                 case "bell":
                 case "key":
-                    return new Fruit(type, x, y);
+                    return new Fruit(type, x, y) { Type = type };
                 default:
                     return null;
             }

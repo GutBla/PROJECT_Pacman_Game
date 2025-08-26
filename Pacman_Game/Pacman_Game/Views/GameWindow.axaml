@@ -8,8 +8,8 @@
         mc:Ignorable="d"
         x:Class="Pacman_Game.Views.GameWindow"
         Title="Pacman Game"
-        Width="600"
-        Height="700"
+        Width="800"
+        Height="800"
         Background="#04041A"
         Icon="avares://Pacman_Game/Assets/custom/Pac-Man_icon.ico">
 
@@ -34,7 +34,7 @@
 		</Border>
 
 		<Border Grid.Row="1"
-                Background="#04041A"
+                Background="#04041a"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center">
 			<controls:GameCanvas

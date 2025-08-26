@@ -13,7 +13,11 @@ namespace Pacman_Game.Views
 #if DEBUG
             this.AttachDevTools();
 #endif
-            this.FindControl<TextBlock>("MessageText").Text = message;
+            var messageTextBlock = this.FindControl<TextBlock>("MessageText");
+            if (messageTextBlock != null)
+            {
+                messageTextBlock.Text = message;
+            }
         }
 
         private void InitializeComponent()

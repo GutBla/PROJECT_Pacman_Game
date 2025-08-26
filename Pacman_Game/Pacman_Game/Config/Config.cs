@@ -24,8 +24,15 @@ namespace Pacman_Game
                     var json = File.ReadAllText(ConfigFilePath);
                     var config = JsonSerializer.Deserialize<ConfigData>(json);
 
-                    InitialLives = config.InitialLives;
-                    GameSpeed = config.GameSpeed;
+                    if (config != null)
+                    {
+                        InitialLives = config.InitialLives;
+                        GameSpeed = config.GameSpeed;
+                    }
+                    else
+                    {
+                        SetDefaultValues();
+                    }
                 }
                 catch
                 {

@@ -12,10 +12,10 @@ namespace Pacman_Game.Views
     {
         public int Score { get; set; }
 
-        private TextBox _nameTextBox;
-        private Button _restartButton;
-        private Button _menuButton;
-        private Button _saveScoreButton;
+        private TextBox? _nameTextBox;
+        private Button? _restartButton;
+        private Button? _menuButton;
+        private Button? _saveScoreButton;
 
         public VictoryWindow()
         {
@@ -23,12 +23,13 @@ namespace Pacman_Game.Views
             this.AttachDevTools();
             this.Opened += VictoryWindow_Opened;
         }
+
         public VictoryWindow(int score) : this()
         {
             Score = score;
         }
 
-        private void VictoryWindow_Opened(object sender, EventArgs e)
+        private void VictoryWindow_Opened(object? sender, EventArgs e)
         {
             Console.WriteLine("VictoryWindow abierta - conectando eventos");
 
@@ -42,9 +43,20 @@ namespace Pacman_Game.Views
             Console.WriteLine($"MenuButton encontrado: {_menuButton != null}");
             Console.WriteLine($"SaveScoreButton encontrado: {_saveScoreButton != null}");
 
-            _restartButton.Click += (s, e) => RestartGame();
-            _menuButton.Click += (s, e) => ReturnToMenu();
-            _saveScoreButton.Click += (s, e) => SaveScore();
+            if (_restartButton != null)
+            {
+                _restartButton.Click += (s, e) => RestartGame();
+            }
+
+            if (_menuButton != null)
+            {
+                _menuButton.Click += (s, e) => ReturnToMenu();
+            }
+
+            if (_saveScoreButton != null)
+            {
+                _saveScoreButton.Click += (s, e) => SaveScore();
+            }
 
             var scoreTextBlock = this.FindControl<TextBlock>("ScoreTextBlock");
             if (scoreTextBlock != null)
@@ -52,7 +64,7 @@ namespace Pacman_Game.Views
                 scoreTextBlock.Text = $"Puntuación Total: {Score}";
             }
 
-            _nameTextBox.Focus();
+            _nameTextBox?.Focus();
         }
 
         private void InitializeComponent()
@@ -80,37 +92,36 @@ namespace Pacman_Game.Views
         {
             Console.WriteLine("SaveScore llamado");
 
-            if (!string.IsNullOrWhiteSpace(_nameTextBox.Text))
-            {
-                Console.WriteLine($"Nombre ingresado: {_nameTextBox.Text}");
-                Console.WriteLine($"Puntuación a guardar: {Score}");
-
-                var scoreRecord = new ScoreRecord
-                {
-                    Score = Score,
-                    Name = _nameTextBox.Text,
-                    Rank = 0
-                };
-
-                bool success = ScoreService.SaveScore(scoreRecord);
-
-                if (success)
-                {
-                    Console.WriteLine("Puntuación guardada exitosamente");
-                    var dialog = new MessageDialog("Puntuación guardada exitosamente!");
-                    dialog.ShowDialog(this);
-                }
-                else
-                {
-                    Console.WriteLine("Error al guardar puntuación");
-                    var dialog = new MessageDialog("Error al guardar la puntuación. Verifica los logs.");
-                    dialog.ShowDialog(this);
-                }
-            }
-            else
+            if (_nameTextBox == null || string.IsNullOrWhiteSpace(_nameTextBox.Text))
             {
                 Console.WriteLine("Nombre vacío");
                 var dialog = new MessageDialog("Por favor ingresa tu nombre");
+                dialog.ShowDialog(this);
+                return;
+            }
+
+            Console.WriteLine($"Nombre ingresado: {_nameTextBox.Text}");
+            Console.WriteLine($"Puntuación a guardar: {Score}");
+
+            var scoreRecord = new ScoreRecord
+            {
+                Score = Score,
+                Name = _nameTextBox.Text,
+                Rank = 0
+            };
+
+            bool success = ScoreService.SaveScore(scoreRecord);
+
+            if (success)
+            {
+                Console.WriteLine("Puntuación guardada exitosamente");
+                var dialog = new MessageDialog("Puntuación guardada exitosamente!");
+                dialog.ShowDialog(this);
+            }
+            else
+            {
+                Console.WriteLine("Error al guardar puntuación");
+                var dialog = new MessageDialog("Error al guardar la puntuación. Verifica los logs.");
                 dialog.ShowDialog(this);
             }
         }

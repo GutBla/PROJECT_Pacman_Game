@@ -3,7 +3,7 @@
     public abstract class GameItem
     {
         public int Points { get; protected set; }
-        public string Type { get; protected set; }
+        public required string Type { get; init; }
         public int X { get; set; }
         public int Y { get; set; }
     }

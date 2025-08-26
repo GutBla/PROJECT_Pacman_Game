@@ -12,31 +12,32 @@ namespace Pacman_Game.Managers
 {
     public sealed class SpriteManager
     {
-        private static readonly Lazy<SpriteManager> _instance = new Lazy<SpriteManager>(() => new SpriteManager());
+        private static readonly Lazy<SpriteManager> _instance = new(() => new SpriteManager());
         public static SpriteManager Instance => _instance.Value;
-        public Dictionary<Direction, Bitmap[]> PacmanSprites { get; private set; }
-        public Dictionary<GhostColor, Dictionary<GhostState, Bitmap[]>> GhostSprites { get; private set; }
-        public Dictionary<string, Bitmap> TextureMap { get; private set; }
-        public Dictionary<string, Bitmap> FruitSprites { get; private set; }
-        public Bitmap[] PacmanDeathSprites { get; private set; }
-        public Bitmap DotSprite { get; private set; }
-        public Bitmap PowerPelletSprite { get; private set; }
+
+        public Dictionary<Direction, Bitmap[]> PacmanSprites { get; private set; } = new();
+        public Dictionary<GhostColor, Dictionary<GhostState, Bitmap[]>> GhostSprites { get; private set; } = new();
+        public Dictionary<string, Bitmap> TextureMap { get; private set; } = new();
+        public Dictionary<string, Bitmap> FruitSprites { get; private set; } = new();
+        public Bitmap[] PacmanDeathSprites { get; private set; } = Array.Empty<Bitmap>();
+        public Bitmap DotSprite { get; private set; } = CreateFallbackTexture(16, 16, Colors.Magenta);
+        public Bitmap PowerPelletSprite { get; private set; } = CreateFallbackTexture(16, 16, Colors.Magenta);
 
         private SpriteManager()
         {
-            PacmanSprites = new Dictionary<Direction, Bitmap[]>();
-            GhostSprites = new Dictionary<GhostColor, Dictionary<GhostState, Bitmap[]>>();
-            TextureMap = new Dictionary<string, Bitmap>();
-            FruitSprites = new Dictionary<string, Bitmap>();
+            var fallbackTexture = CreateFallbackTexture(16, 16, Colors.Magenta);
+            PacmanDeathSprites = new[] { fallbackTexture };
+            DotSprite = fallbackTexture;
+            PowerPelletSprite = fallbackTexture;
 
             LoadAllSprites();
         }
 
-        private Bitmap LoadBitmap(string uri)
+        private static Bitmap LoadBitmap(string uri)
         {
             try
             {
-                var asset = AssetLoader.Open(new Uri(uri));
+                using Stream asset = AssetLoader.Open(new Uri(uri));
                 return new Bitmap(asset);
             }
             catch (Exception ex)
@@ -46,7 +47,7 @@ namespace Pacman_Game.Managers
             }
         }
 
-        private Bitmap CreateFallbackTexture(int width, int height, Color color)
+        private static Bitmap CreateFallbackTexture(int width, int height, Color color)
         {
             var writableBitmap = new WriteableBitmap(
                 new PixelSize(width, height),
@@ -56,7 +57,7 @@ namespace Pacman_Game.Managers
             using (var lockedBuffer = writableBitmap.Lock())
             {
                 byte[] pixelData = new byte[height * lockedBuffer.RowBytes];
-                int bytesPerPixel = 4;
+                const int bytesPerPixel = 4;
 
                 for (int y = 0; y < height; y++)
                 {
@@ -84,7 +85,6 @@ namespace Pacman_Game.Managers
         {
             try
             {
-                // Cargar sprites de Pacman
                 PacmanSprites[Direction.Right] = new[]
                 {
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_right_1.png"),
@@ -113,7 +113,6 @@ namespace Pacman_Game.Managers
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_closed.png")
                 };
 
-                // Cargar animación de muerte de Pacman
                 PacmanDeathSprites = new Bitmap[]
                 {
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_death_1.png"),
@@ -129,11 +128,9 @@ namespace Pacman_Game.Managers
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_death_11.png")
                 };
 
-                // Cargar dots y power pellets
                 DotSprite = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/pacdot.png");
                 PowerPelletSprite = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/powerpellet.png");
 
-                // Cargar frutas
                 FruitSprites["apple"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/apple.png");
                 FruitSprites["cherry"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/cherry.png");
                 FruitSprites["strawberry"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/strawberry.png");
@@ -143,11 +140,8 @@ namespace Pacman_Game.Managers
                 FruitSprites["bell"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/bell.png");
                 FruitSprites["key"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/key.png");
 
-
-                // Cargar textura del camino
                 LoadTexture("path", "Assets/tilesets/sprite_path.png");
 
-                // Cargar texturas del mapa
                 LoadTexture("TL1", "tilesets/corner_top_left/corner_top_left_01");
                 LoadTexture("TL2", "tilesets/corner_top_left/corner_top_left_02");
                 LoadTexture("TL3", "tilesets/corner_top_left/corner_top_left_03");
@@ -174,7 +168,6 @@ namespace Pacman_Game.Managers
                 LoadTexture("V1", "tilesets/wall_vertical/wall_vertical_01");
                 LoadTexture("V2", "tilesets/wall_vertical/wall_vertical_02");
 
-                // Cargar fantasmas
                 LoadGhostSprites(GhostColor.Red, "blinky");
                 LoadGhostSprites(GhostColor.Pink, "pinky");
                 LoadGhostSprites(GhostColor.Blue, "inky");
@@ -202,10 +195,9 @@ namespace Pacman_Game.Managers
 
         private void LoadGhostSprites(GhostColor color, string ghostName)
         {
-            var states = new Dictionary<GhostState, Bitmap[]>();
+            Dictionary<GhostState, Bitmap[]> states = new();
 
-            // Sprites normales (Chase y Scatter)
-            var normalSprites = new Dictionary<Direction, Bitmap[]>
+            Dictionary<Direction, Bitmap[]> normalSprites = new()
             {
                 [Direction.Up] = new[]
                 {
@@ -229,11 +221,11 @@ namespace Pacman_Game.Managers
                 }
             };
 
+
             states[GhostState.Chase] = normalSprites.Values.SelectMany(x => x).ToArray();
             states[GhostState.Scatter] = normalSprites.Values.SelectMany(x => x).ToArray();
 
-            // Sprites asustados (Frightened)
-            var frightenedSprites = new[]
+            Bitmap[] frightenedSprites = new[]
             {
                 LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_1.png"),
                 LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_2.png"),
@@ -242,8 +234,8 @@ namespace Pacman_Game.Managers
             };
             states[GhostState.Frightened] = frightenedSprites;
 
-            // Sprites de ojos (Eaten)
-            var eyesSprites = new Dictionary<Direction, Bitmap>
+           
+            Dictionary<Direction, Bitmap> eyesSprites = new()
             {
                 [Direction.Right] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_right.png"),
                 [Direction.Left] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_left.png"),

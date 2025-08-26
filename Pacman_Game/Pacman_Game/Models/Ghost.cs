@@ -29,24 +29,11 @@ namespace Pacman_Game.Models
             Y = y;
             Speed = 1;
             CurrentDirection = Direction.Left;
-            SetupStateTimers();
-        }
-
-        public double GetCurrentSpeed()
-        {
-            if (IsInTunnel) return 0.4;
-            if (State == GhostState.Eaten) return 2.0;
-            if (State == GhostState.Frightened) return 0.5;
-            return 0.75;
-        }
-        private void SetupStateTimers()
-        {
             stateTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(7)
             };
             stateTimer.Tick += (s, e) => CycleStates();
-            stateTimer.Start();
 
             frightenedTimer = new DispatcherTimer
             {
@@ -63,6 +50,16 @@ namespace Pacman_Game.Models
                 Interval = TimeSpan.FromSeconds(8)
             };
             _frightenedEndingTimer.Tick += (s, e) => { };
+
+            stateTimer.Start();
+        }
+
+        public double GetCurrentSpeed()
+        {
+            if (IsInTunnel) return 0.4;
+            if (State == GhostState.Eaten) return 2.0;
+            if (State == GhostState.Frightened) return 0.5;
+            return 0.75;
         }
 
         private void CycleStates()
@@ -104,7 +101,7 @@ namespace Pacman_Game.Models
 
         protected abstract (double X, double Y) GetTargetPosition(Pacman pacman);
 
-        protected virtual (double X, double Y) GetScatterCorner(Map map)
+        protected virtual (double X, double Y) GetScatterCorner(Map? map)
         {
             if (map == null)
             {
@@ -212,17 +209,17 @@ namespace Pacman_Game.Models
 
         private void MoveInDirection(Direction direction, Map map)
         {
-            IsInTunnel = (Y >= 13.5 && Y <= 14.5) && (X < 1.5 || X > map.Width - 2.5);
-
+            IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
             CurrentDirection = direction;
+
             var (nextX, nextY) = CalculateNewPosition(CurrentDirection);
             int intX = (int)nextX;
             int intY = (int)nextY;
 
             if (IsValidMove(intX, intY, map))
             {
-                X = nextX;
-                Y = nextY;
+                X = intX;
+                Y = intY;
             }
         }
 
@@ -239,7 +236,7 @@ namespace Pacman_Game.Models
             };
         }
 
-        private bool IsValidMove(int x, int y, Map map)
+        private new bool IsValidMove(int x, int y, Map map)
         {
             if (x < 0 || y < 0 || y >= map.Height || x >= map.Width)
                 return false;

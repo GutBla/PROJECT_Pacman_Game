@@ -32,7 +32,6 @@ namespace Pacman_Game.Controls
             set => SetAndRaise(ViewModelProperty, ref _viewModel, value);
         }
 
-
         public GameCanvas()
         {
             SetupAnimationTimer();
@@ -56,44 +55,51 @@ namespace Pacman_Game.Controls
         public override void Render(DrawingContext context)
         {
             base.Render(context);
-            if (_viewModel == null || _viewModel.MapTextures == null)
+
+            if (_viewModel == null || _viewModel.MapTextures == null || _viewModel.GameMap == null)
             {
                 return;
             }
 
+            var vm = _viewModel!;
+
+            Color backgroundColor = Color.Parse("#04041a");
+            var backgroundBrush = new SolidColorBrush(backgroundColor);
+            context.FillRectangle(backgroundBrush, new Rect(0, 0, Bounds.Width, Bounds.Height));
+
             const int cellSize = 20;
-            DrawTextureMap(context, cellSize);
-            DrawGameElements(context, cellSize);
-            DrawPacman(context, cellSize);
-            DrawGhosts(context, cellSize);
+            DrawTextureMap(context, cellSize, vm);
+            DrawGameElements(context, cellSize, vm);
+            DrawPacman(context, cellSize, vm);
+            DrawGhosts(context, cellSize, vm);
         }
 
-        private void DrawTextureMap(DrawingContext context, int cellSize)
+        private void DrawTextureMap(DrawingContext context, int cellSize, GameViewModel viewModel)
         {
+            var map = viewModel.GameMap!;
             var spriteManager = SpriteManager.Instance;
-            for (int y = 0; y < _viewModel.GameMap.Height; y++)
+            for (int y = 0; y < map.Height; y++)
             {
-                for (int x = 0; x < _viewModel.GameMap.Width; x++)
+                for (int x = 0; x < map.Width; x++)
                 {
-                    var textureKey = _viewModel.GameMap.GetTextureKey(x, y);
-                    Bitmap texture = null;
+                    var textureKey = map.GetTextureKey(x, y);
                     bool isPathCell = string.IsNullOrEmpty(textureKey) || textureKey == "0";
 
                     if (isPathCell)
                     {
-                        if (spriteManager.TextureMap.TryGetValue("path", out texture) && texture != null)
+                        if (spriteManager.TextureMap.TryGetValue("path", out Bitmap? texturePath) && texturePath != null)
                         {
                             var rect = new Rect(x * cellSize, y * cellSize, cellSize, cellSize);
-                            context.DrawImage(texture, rect);
+                            context.DrawImage(texturePath, rect);
                             continue;
                         }
                     }
                     else if (!string.IsNullOrEmpty(textureKey) &&
-                            spriteManager.TextureMap.TryGetValue(textureKey, out texture) &&
-                            texture != null)
+                            spriteManager.TextureMap.TryGetValue(textureKey, out Bitmap? textureKeyMap) &&
+                            textureKeyMap != null)
                     {
                         var rect = new Rect(x * cellSize, y * cellSize, cellSize, cellSize);
-                        context.DrawImage(texture, rect);
+                        context.DrawImage(textureKeyMap, rect);
                     }
                     else
                     {
@@ -108,16 +114,19 @@ namespace Pacman_Game.Controls
             }
         }
 
-        private void DrawGameElements(DrawingContext context, int cellSize)
+        private void DrawGameElements(DrawingContext context, int cellSize, GameViewModel viewModel)
         {
-            if (_viewModel.GameMap.Elements == null) return;
+            var map = viewModel.GameMap!;
+            string?[,]? elements = map.Elements;
+            if (elements == null) return;
 
             var spriteManager = SpriteManager.Instance;
-            for (int y = 0; y < _viewModel.GameMap.Height; y++)
+            for (int y = 0; y < map.Height; y++)
             {
-                for (int x = 0; x < _viewModel.GameMap.Width; x++)
+                for (int x = 0; x < map.Width; x++)
                 {
-                    string element = _viewModel.GameMap.Elements[y, x];
+                    string? element = elements[y, x];
+                    if (element == null) continue;
                     if (string.IsNullOrEmpty(element)) continue;
 
                     switch (element)
@@ -143,7 +152,7 @@ namespace Pacman_Game.Controls
                         case "TP":
                             break;
                         default:
-                            if (spriteManager.FruitSprites.TryGetValue(element, out var fruitSprite) &&
+                            if (spriteManager.FruitSprites.TryGetValue(element, out Bitmap? fruitSprite) &&
                                 fruitSprite != null)
                             {
                                 var rect = new Rect(x * cellSize + cellSize / 2 - 8,
@@ -156,12 +165,16 @@ namespace Pacman_Game.Controls
                 }
             }
         }
-        private void DrawPacman(DrawingContext context, int cellSize)
+
+        private void DrawPacman(DrawingContext context, int cellSize, GameViewModel viewModel)
         {
-            if (_viewModel.Pacman == null) return;
+            var pacman = viewModel.Pacman;
+            if (pacman == null) return;
+
             var spriteManager = SpriteManager.Instance;
-            var pacman = _viewModel.Pacman;
-            var rect = new Rect(pacman.X * cellSize, pacman.Y * cellSize, cellSize, cellSize);
+            int drawX = (int)pacman.X;
+            int drawY = (int)pacman.Y;
+            var rect = new Rect(drawX * cellSize, drawY * cellSize, cellSize, cellSize);
 
             if (pacman.IsDying)
             {
@@ -173,29 +186,36 @@ namespace Pacman_Game.Controls
             }
             else
             {
-                if (spriteManager.PacmanSprites.TryGetValue(pacman.CurrentDirection, out var frames) &&
+                if (spriteManager.PacmanSprites.TryGetValue(pacman.CurrentDirection, out Bitmap[]? frames) &&
                     frames != null)
                 {
                     int frameIndex = _currentFrame % 3;
+                    // protejemos por si frames tiene menos elementos
+                    frameIndex = frameIndex % Math.Max(1, frames.Length);
                     context.DrawImage(frames[frameIndex], rect);
                 }
             }
         }
 
-        private void DrawGhosts(DrawingContext context, int cellSize)
+        private void DrawGhosts(DrawingContext context, int cellSize, GameViewModel viewModel)
         {
-            if (_viewModel.Ghosts == null) return;
+            var ghosts = viewModel.Ghosts;
+            if (ghosts == null) return;
             var spriteManager = SpriteManager.Instance;
 
-            foreach (var ghost in _viewModel.Ghosts)
+            foreach (var ghost in ghosts)
             {
-                var rect = new Rect(ghost.X * cellSize, ghost.Y * cellSize, cellSize, cellSize);
+                if (ghost == null) continue;
 
-                if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out var states) &&
-                    states.TryGetValue(ghost.State, out var frames) &&
+                int drawX = (int)ghost.X;
+                int drawY = (int)ghost.Y;
+                var rect = new Rect(drawX * cellSize, drawY * cellSize, cellSize, cellSize);
+
+                if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out Dictionary<GhostState, Bitmap[]>? states) &&
+                    states?.TryGetValue(ghost.State, out Bitmap[]? frames) == true &&
                     frames != null && frames.Length > 0)
                 {
-                    Bitmap frame = null;
+                    Bitmap? frame = null;
 
                     if (ghost.State == GhostState.Eaten)
                     {
@@ -210,12 +230,12 @@ namespace Pacman_Game.Controls
                     else if (ghost.State == GhostState.Frightened)
                     {
                         int frameIndex = _currentFrame % 4;
-                        frame = frames[frameIndex];
+                        frame = frames.Length > frameIndex ? frames[frameIndex] : frames[0];
                     }
                     else
                     {
                         int frameIndex = _currentFrame % 2;
-                        frame = frames[frameIndex];
+                        frame = frames.Length > frameIndex ? frames[frameIndex] : frames[0];
                     }
 
                     if (frame != null)

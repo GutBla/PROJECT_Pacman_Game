@@ -27,8 +27,8 @@ namespace Pacman_Game.Views
 
         private void ApplyButton_Click(object sender, RoutedEventArgs e)
         {
-            Config.InitialLives = ViewModel.LivesCount;
-            Config.GameSpeed = ViewModel.GameSpeed;
+            Config.InitialLives = ViewModel!.LivesCount;
+            Config.GameSpeed = ViewModel!.GameSpeed;
             Config.SaveConfig();
 
             var dialog = new MessageDialog("Configuración aplicada correctamente");
@@ -37,7 +37,7 @@ namespace Pacman_Game.Views
 
         private void IncreaseLivesClick(object sender, RoutedEventArgs e)
         {
-            if (ViewModel.LivesCount < 50)
+            if (ViewModel != null && ViewModel.LivesCount < 50)
             {
                 ViewModel.LivesCount++;
             }
@@ -45,7 +45,7 @@ namespace Pacman_Game.Views
 
         private void DecreaseLivesClick(object sender, RoutedEventArgs e)
         {
-            if (ViewModel.LivesCount > 1)
+            if (ViewModel != null && ViewModel.LivesCount > 1)
             {
                 ViewModel.LivesCount--;
             }
