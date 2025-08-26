@@ -35,6 +35,7 @@ namespace Pacman_Game.ViewModels
 
         public void Dispose()
         {
+            // Detener todos los timers al cerrar o reiniciar
             _gameTimer?.Stop();
             _fruitTimer?.Stop();
             powerPelletTimer?.Stop();
@@ -81,7 +82,7 @@ namespace Pacman_Game.ViewModels
         {
             SoundManager.Instance.PlaySound("beginning");
 
-            // Timer principal: actualiza todo el juego
+            // Timer principal del juego: mueve y actualiza todo
             _gameTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(Config.GameSpeed)
@@ -89,7 +90,7 @@ namespace Pacman_Game.ViewModels
             _gameTimer.Tick += (s, e) => UpdateGame();
             _gameTimer.Start();
 
-            // Timer para PowerPellet
+            // Timer PowerPellet: duración del efecto
             powerPelletTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(10)
@@ -107,38 +108,38 @@ namespace Pacman_Game.ViewModels
         {
             if (IsGameOver || IsVictory || Pacman.IsDying) return;
 
-            // Mover a Pacman
+            // Mover a Pacman y manejar teletransportes
             Pacman.Move(GameMap);
             HandleTeleports();
 
-            // Verificar colisiones con elementos
+            // Verificar colisiones con elementos del mapa
             CheckElementCollision();
 
-            // Mover a los fantasmas
+            // Mover a los fantasmas hacia Pacman
             foreach (var ghost in Ghosts)
             {
                 ghost.ChasePacman(Pacman, GameMap);
             }
 
-            // Verificar colisiones con fantasmas
+            // Revisar colisiones de Pacman con fantasmas
             foreach (var ghost in Ghosts)
             {
                 CheckPacmanGhostCollision(ghost);
             }
 
-            // Verificar victoria
+            // Revisar si el jugador ganó
             CheckVictoryCondition();
 
-            // Notificar cambios
+            // Notificar cambios de propiedades
             this.RaisePropertyChanged(nameof(Score));
             this.RaisePropertyChanged(nameof(Lives));
         }
 
         public void InitializeGame()
         {
-            InitializeMap();
-            InitializeGhosts();
-            ResetPacmanPosition();
+            InitializeMap();          // Crear mapa y elementos
+            InitializeGhosts();       // Instanciar fantasmas
+            ResetPacmanPosition();    // Posición inicial de Pacman
             Score = 0;
             Lives = Config.InitialLives;
             dotsEaten = 0;
@@ -147,7 +148,7 @@ namespace Pacman_Game.ViewModels
 
             foreach (var ghost in Ghosts)
             {
-                ghost.Reset();
+                ghost.Reset();       // Resetear fantasmas
             }
 
             // Copiar elementos del mapa
@@ -161,12 +162,11 @@ namespace Pacman_Game.ViewModels
                 Elements = new string[GameMap.Height, GameMap.Width];
             }
 
-            // Iniciar temporizador de frutas
+            // Timer para aparecer frutas
             _fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
             _fruitTimer.Tick += (s, e) => SpawnRandomFruit();
             _fruitTimer.Start();
 
-            // Asegurarnos de que el timer esté activo
             _gameTimer.Start();
             Pacman.IsPowerPelletActive = false;
         }
@@ -179,9 +179,6 @@ namespace Pacman_Game.ViewModels
             Pacman.NextDirection = Direction.Right;
         }
 
-        // ------------------ ELIMINADO: StartParallelGameLoop() ------------------
-        // Ya no se usa Task.Run ni Dispatcher.UIThread.Post()
-
         private void SpawnRandomFruit()
         {
             if (Elements == null || Elements.GetLength(0) == 0 || IsGameOver || IsVictory) return;
@@ -191,10 +188,7 @@ namespace Pacman_Game.ViewModels
             {
                 for (int x = 0; x < Elements.GetLength(1); x++)
                 {
-                    if (Elements[y, x] == "FR")
-                    {
-                        spawnPoints.Add((x, y));
-                    }
+                    if (Elements[y, x] == "FR") spawnPoints.Add((x, y));
                 }
             }
 
@@ -208,6 +202,7 @@ namespace Pacman_Game.ViewModels
 
                 Elements[y, x] = fruit;
 
+                // Timer para desaparecer fruta
                 DispatcherTimer fruitTimer = new() { Interval = TimeSpan.FromSeconds(5) };
                 fruitTimer.Tick += (s, e) =>
                 {
@@ -236,6 +231,7 @@ namespace Pacman_Game.ViewModels
                 elementType == "melon" || elementType == "galaxian" ||
                 elementType == "bell" || elementType == "key")
             {
+                // Incrementar puntaje según el tipo de elemento
                 switch (elementType)
                 {
                     case "PD":
@@ -280,9 +276,11 @@ namespace Pacman_Game.ViewModels
 
         private void HandleTeleports()
         {
+            // Teletransportar Pacman de un lado a otro
             if (Pacman.X < 0) Pacman.X = GameMap.Width - 1;
             if (Pacman.X >= GameMap.Width) Pacman.X = 0;
         }
+
 
         private void InitializeMap()
         {
