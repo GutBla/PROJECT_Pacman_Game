@@ -6,6 +6,18 @@ namespace Pacman_Game.Models
     {
         private double x;
         private double y;
+
+        protected (double, double) CalculateNewPosition(Direction direction, double speed)
+        {
+            return direction switch
+            {
+                Direction.Up => (X, Y - speed),
+                Direction.Down => (X, Y + speed),
+                Direction.Left => (X - speed, Y),
+                Direction.Right => (X + speed, Y),
+                _ => (X, Y)
+            };
+        }
         protected bool IsValidMove(int x, int y, Map map)
         {
             return !map.IsBlocking(x, y);

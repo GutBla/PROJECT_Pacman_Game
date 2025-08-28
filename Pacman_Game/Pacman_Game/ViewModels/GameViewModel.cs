@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace Pacman_Game.ViewModels
 {
-    public class GameViewModel : ViewModelBase, IDisposable
+    public class GameViewModel : ViewModelBase
     {
         private int score;
         private int lives;
@@ -43,7 +43,7 @@ namespace Pacman_Game.ViewModels
         public Pacman Pacman { get; } = new();
         public List<Ghost> Ghosts { get; } = new();
         public string[,] MapTextures { get; private set; } = new string[0, 0];
-        public string[,] Elements { get; private set; } = new string[0, 0];
+        private readonly IItemFactory _itemFactory = new ItemFactory();
 
         public event EventHandler RequestClose = delegate { };
 
@@ -77,31 +77,35 @@ namespace Pacman_Game.ViewModels
             private set => this.RaiseAndSetIfChanged(ref lives, value);
         }
 
-        public GameViewModel()
-        {
-            SoundManager.Instance.PlaySound("beginning");
+public GameViewModel()
+{
+    SoundManager.Instance.PlaySound("beginning");
 
-            // Timer principal: actualiza todo el juego
-            _gameTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(Config.GameSpeed)
-            };
-            _gameTimer.Tick += (s, e) => UpdateGame();
-            _gameTimer.Start();
+    // Timer principal: actualiza todo el juego
+    _gameTimer = new DispatcherTimer
+    {
+        Interval = TimeSpan.FromMilliseconds(Config.GameSpeed)
+    };
+    _gameTimer.Tick += (s, e) => UpdateGame();
+    _gameTimer.Start();
 
-            // Timer para PowerPellet
-            powerPelletTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(10)
-            };
-            powerPelletTimer.Tick += (s, e) => EndPowerPellet();
+    // Timer para PowerPellet
+    powerPelletTimer = new DispatcherTimer
+    {
+        Interval = TimeSpan.FromSeconds(10)
+    };
+    powerPelletTimer.Tick += (s, e) => EndPowerPellet();
 
-            InitializeGame();
+    // Timer para frutas
+    _fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+    _fruitTimer.Tick += (s, e) => SpawnRandomFruit();
 
-            PauseGameCommand = ReactiveCommand.Create(PauseGame);
-            RestartGameCommand = ReactiveCommand.Create(RestartGame);
-            ReturnToMenuCommand = ReactiveCommand.Create(ReturnToMenu);
-        }
+    InitializeGame();
+
+    PauseGameCommand = ReactiveCommand.Create(PauseGame);
+    RestartGameCommand = ReactiveCommand.Create(RestartGame);
+    ReturnToMenuCommand = ReactiveCommand.Create(ReturnToMenu);
+}
 
         private void UpdateGame()
         {
@@ -143,31 +147,18 @@ namespace Pacman_Game.ViewModels
             dotsEaten = 0;
             IsGameOver = false;
             IsVictory = false;
-
             foreach (var ghost in Ghosts)
             {
                 ghost.Reset();
             }
 
-            // Copiar elementos del mapa
-            if (GameMap.Elements != null)
-            {
-                Elements = new string[GameMap.Height, GameMap.Width];
-                Array.Copy(GameMap.Elements, Elements, GameMap.Elements.Length);
-            }
-            else
-            {
-                Elements = new string[GameMap.Height, GameMap.Width];
-            }
-
-            // Iniciar temporizador de frutas
             _fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
             _fruitTimer.Tick += (s, e) => SpawnRandomFruit();
             _fruitTimer.Start();
-
             _gameTimer.Start();
             Pacman.IsPowerPelletActive = false;
         }
+
 
         private void ResetPacmanPosition()
         {
@@ -179,34 +170,29 @@ namespace Pacman_Game.ViewModels
 
         private void SpawnRandomFruit()
         {
-            if (Elements == null || Elements.GetLength(0) == 0 || IsGameOver || IsVictory) return;
-
+            if (GameMap.Elements == null || GameMap.Elements.GetLength(0) == 0 || IsGameOver || IsVictory) return;
             List<(int, int)> spawnPoints = new();
-            for (int y = 0; y < Elements.GetLength(0); y++)
+            for (int y = 0; y < GameMap.Elements.GetLength(0); y++)
             {
-                for (int x = 0; x < Elements.GetLength(1); x++)
+                for (int x = 0; x < GameMap.Elements.GetLength(1); x++)
                 {
-                    if (Elements[y, x] == "FR")
-                    {
+                    if (GameMap.Elements[y, x] == "FR")
                         spawnPoints.Add((x, y));
-                    }
                 }
             }
-
             if (spawnPoints.Count > 0)
             {
                 int index = _random.Next(spawnPoints.Count);
                 var (x, y) = spawnPoints[index];
-
                 string[] fruits = { "apple", "cherry", "strawberry", "orange", "melon", "galaxian", "bell" };
                 string fruit = fruits[_random.Next(fruits.Length)];
-
-                Elements[y, x] = fruit;
+                GameMap.Elements[y, x] = fruit;
 
                 DispatcherTimer fruitTimer = new() { Interval = TimeSpan.FromSeconds(5) };
                 fruitTimer.Tick += (s, e) =>
                 {
-                    if (Elements[y, x] == fruit) Elements[y, x] = "FR";
+                    if (GameMap.Elements != null && GameMap.Elements[y, x] == fruit)
+                        GameMap.Elements[y, x] = "FR";
                     fruitTimer.Stop();
                 };
                 fruitTimer.Start();
@@ -215,60 +201,38 @@ namespace Pacman_Game.ViewModels
 
         private void CheckElementCollision()
         {
-            if (GameMap == null || Elements == null) return;
+            if (GameMap == null || GameMap.Elements == null) return;
 
             int x = (int)Math.Round(Pacman.X);
             int y = (int)Math.Round(Pacman.Y);
 
-            if (y < 0 || y >= GameMap.Height || x < 0 || x >= GameMap.Width) return;
+            if (y < 0 || y >= GameMap.Height || x < 0 || x >= GameMap.Width)
+                return;
 
-            string elementType = Elements[y, x] ?? string.Empty;
-            if (string.IsNullOrEmpty(elementType)) return;
+            string elementType = GameMap.Elements[y, x] ?? string.Empty;
+            if (string.IsNullOrEmpty(elementType))
+                return;
 
-            if (elementType == "PD" || elementType == "PP" ||
-                elementType == "cherry" || elementType == "strawberry" ||
-                elementType == "orange" || elementType == "apple" ||
-                elementType == "melon" || elementType == "galaxian" ||
-                elementType == "bell" || elementType == "key")
+            var item = _itemFactory.CreateItem(elementType, x, y);
+
+            if (item != null)
             {
+                Score += item.Points;
+
                 switch (elementType)
                 {
                     case "PD":
-                        Score += 10;
-                        dotsEaten++;
-                        Ghost.UpdateDotsEaten(dotsEaten);
                         SoundManager.Instance.PlaySound("chomp");
                         break;
                     case "PP":
-                        Score += 50;
                         ActivatePowerPellet();
                         SoundManager.Instance.PlaySound("extrapac");
                         break;
-                    case "cherry":
-                    case "strawberry":
-                    case "orange":
-                    case "apple":
-                    case "melon":
-                    case "galaxian":
-                    case "bell":
-                    case "key":
-                        int fruitPoints = elementType switch
-                        {
-                            "cherry" => 100,
-                            "strawberry" => 300,
-                            "orange" => 500,
-                            "apple" => 700,
-                            "melon" => 1000,
-                            "galaxian" => 2000,
-                            "bell" => 3000,
-                            "key" => 5000,
-                            _ => 100
-                        };
-                        Score += fruitPoints;
+                    default:
                         SoundManager.Instance.PlaySound("eatfruit");
                         break;
                 }
-                Elements[y, x] = string.Empty;
+
                 GameMap.Elements[y, x] = string.Empty;
             }
         }
@@ -454,14 +418,14 @@ namespace Pacman_Game.ViewModels
 
         private void CheckVictoryCondition()
         {
-            if (Elements == null || GameMap == null || GameMap.Elements == null) return;
+            if (GameMap == null || GameMap.Elements == null) return;
 
             bool allDotsEaten = true;
-            for (int y = 0; y < Elements.GetLength(0); y++)
+            for (int y = 0; y < GameMap.Elements.GetLength(0); y++)
             {
-                for (int x = 0; x < Elements.GetLength(1); x++)
+                for (int x = 0; x < GameMap.Elements.GetLength(1); x++)
                 {
-                    string element = Elements[y, x] ?? string.Empty;
+                    string element = GameMap.Elements[y, x] ?? string.Empty;
                     if (element == "PD" || element == "PP")
                     {
                         allDotsEaten = false;
@@ -558,7 +522,6 @@ namespace Pacman_Game.ViewModels
             RequestClose?.Invoke(this, EventArgs.Empty);
             var mainWindow = new MainWindow();
             mainWindow.Show();
-            this.Dispose();
         }
     }
 }

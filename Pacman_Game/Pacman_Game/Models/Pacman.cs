@@ -25,10 +25,11 @@ namespace Pacman_Game.Models
             return 0.8;
         }
 
-        public void Move(Map map) 
+        public void Move(Map map)
         {
             IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
-            var (nextX, nextY) = CalculateNewPosition(NextDirection);
+
+            var (nextX, nextY) = CalculateNewPosition(NextDirection, GetCurrentSpeed());
             int intNextX = (int)Math.Round(nextX);
             int intNextY = (int)Math.Round(nextY);
 
@@ -40,7 +41,7 @@ namespace Pacman_Game.Models
             }
             else
             {
-                var (newPosX, newPosY) = CalculateNewPosition(CurrentDirection);
+                var (newPosX, newPosY) = CalculateNewPosition(CurrentDirection, GetCurrentSpeed());
                 int intNewPosX = (int)Math.Round(newPosX);
                 int intNewPosY = (int)Math.Round(newPosY);
 
@@ -51,9 +52,10 @@ namespace Pacman_Game.Models
                 }
             }
 
-            if (X < 0) X = map.Width - 1;   // Teletransportacion
+            if (X < 0) X = map.Width - 1;
             if (X >= map.Width) X = 0;
         }
+
 
         private new bool IsValidMove(int x, int y, Map map) // Valida movimiento dentro de límites y colisiones
         {
@@ -62,18 +64,6 @@ namespace Pacman_Game.Models
             return y >= 0 && y < map.Height && !map.IsBlocking(x, y);
         }
 
-        private (double, double) CalculateNewPosition(Direction direction) // Calcula nueva posición según dirección y velocidad
-        {
-            double speed = GetCurrentSpeed();
-            return direction switch
-            {
-                Direction.Up => (X, Y - speed),
-                Direction.Down => (X, Y + speed),
-                Direction.Left => (X - speed, Y),
-                Direction.Right => (X + speed, Y),
-                _ => (X, Y)
-            };
-        }
         public void ResetPosition()  // Reinicia posición y dirección inicial
         {
             X = 13;

@@ -8,19 +8,18 @@
         public int Y { get; set; }
     }
 
-    // dot
+
     public class Dot : GameItem
     {
         public Dot(int x, int y)
         {
-            Points = 10;  // Valor de puntos
-            Type = "PD";  // Identificador de tipo
+            Points = 10;
+            Type = "PD";
             X = x;
             Y = y;
         }
     }
 
-    // Power Pellets
     public class PowerPellet : GameItem
     {
         public PowerPellet(int x, int y)
@@ -32,7 +31,6 @@
         }
     }
 
-    // frutas
     public class Fruit : GameItem
     {
         public Fruit(string fruitType, int x, int y)
@@ -40,7 +38,19 @@
             Type = fruitType;
             X = x;
             Y = y;
-            Points = 100;
+
+            Points = fruitType switch
+            {
+                "cherry" => 100,
+                "strawberry" => 300,
+                "orange" => 500,
+                "apple" => 700,
+                "melon" => 1000,
+                "galaxian" => 2000,
+                "bell" => 3000,
+                "key" => 5000,
+                _ => 100
+            };
         }
     }
 }

@@ -278,17 +278,8 @@ namespace Pacman_Game.Models
 
         private (double, double) CalculateNewPosition(Direction direction)
         {
-            double speed = GetCurrentSpeed();
-            return direction switch
-            {
-                Direction.Up => (X, Y - speed),
-                Direction.Down => (X, Y + speed),
-                Direction.Left => (X - speed, Y),
-                Direction.Right => (X + speed, Y),
-                _ => (X, Y)
-            };
+            return CalculateNewPosition(direction, GetCurrentSpeed());
         }
-
         private new bool IsValidMove(int x, int y, Map map)
         {
             if ((y >= 13 && y <= 14) && (x < 0 || x >= map.Width)) return true;

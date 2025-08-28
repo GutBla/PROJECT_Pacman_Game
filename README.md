@@ -19,6 +19,34 @@ El proyecto consiste en la recreación del clásico juego Pac-Man como una aplic
 - Vidas limitadas y condiciones de finalización del juego.
 - Pantalla de inicio con menú interactivo y tabla de puntajes.
 
+## Guía de instalación y ejecución
+
+Para obtener y ejecutar el proyecto, se seguirán los siguientes pasos:
+
+1. **Clonar el repositorio** desde GitLab:
+
+```bash
+git clone https://gitlab.com/jala-university1/cohort-4/oficial-es-programaci-n-3-cspr-231.ga.t2.25.m1/secci-n-e/capstone/agutierrez/project_pacman_game
+```
+2. **Ingresar** a la carpeta del proyecto y **restaurar** las dependencias necesarias:
+
+```bash
+cd project_pacman_game
+cd Pacman_Game
+dotnet restore
+```
+
+3. **Compilar** y **ejecutar** el proyecto:
+
+```bash
+dotnet build
+dotnet run --project Pacman_Game.csproj
+```
+
+4. Alternativamente, se podrá abrir el proyecto en un IDE como Visual Studio o Rider, desde donde se **configurará** la solución y se **ejecutará** la aplicación con un solo clic.
+
+> .[!NOTE] Es importante asegurarse de que la carpeta `Assets` esté completa, ya que las imágenes, sonidos y tilesets se **cargarán** en tiempo de ejecución para que el juego funcione correctamente.
+
 # ¿Qué es Pac-Man?
 
 Pac-Man es un videojuego de laberinto lanzado en 1980 por Namco. En él, el jugador controla a un personaje amarillo con forma de disco redondo cuyo objetivo principal es comer todos los puntos del laberinto mientras evita a cuatro fantasmas enemigos. Al consumir las “Power Pellets” (píldoras grandes), Pac-Man puede devorar a los fantasmas temporalmente para obtener puntos extra.
@@ -305,6 +333,8 @@ Al finalizar, se muestra un mensaje con opciones para reiniciar la partida o reg
 
 ## Interfaz de Usuario
 
+![Ventanas_de_Ejecución_del_proyecto.png](images/Ventanas_de_Ejecución_del_proyecto.png)
+
 ### Pantalla de Inicio
 
 La pantalla inicial presenta un menú interactivo con las siguientes opciones:
@@ -322,3 +352,4 @@ Todas las opciones incluyen efectos sonoros para mejorar la experiencia del usua
 La tabla de puntajes almacena y presenta los registros de mejores marcas junto con los seudónimos de los jugadores, recuperados desde almacenamiento local (archivo de texto o JSON).
 
 # **Ejecución del Proyecto**
+![alt text](images/Ejecucion_Pac-Man_Game.gif)

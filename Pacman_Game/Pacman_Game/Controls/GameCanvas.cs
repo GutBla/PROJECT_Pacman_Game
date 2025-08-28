@@ -148,8 +148,6 @@ namespace Pacman_Game.Controls
                                 context.DrawImage(spriteManager.PowerPelletSprite, rect);
                             }
                             break;
-                        case "TP":
-                            break;
                         default:
                             if (spriteManager.FruitSprites.TryGetValue(element, out Bitmap? fruitSprite) &&
                                 fruitSprite != null)
