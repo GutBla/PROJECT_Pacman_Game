@@ -16,7 +16,6 @@ namespace Pacman_Game
         private const int MinSpeed = 50;
         private const int MaxSpeed = 500;
 
-        // CA1869: cached and reused JsonSerializerOptions instance
         private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
         static Config() => LoadConfig();

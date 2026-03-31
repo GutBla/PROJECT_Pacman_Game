@@ -110,7 +110,6 @@ namespace Pacman_Game.ViewModels
 
         public void InitializeGame()
         {
-            // ✅ FIX #2: Detener cualquier loop de fantasmas activo antes de resetear el estado.
             SoundManager.Instance.StopGhostLoop();
 
             InitializeMap();
@@ -309,7 +308,6 @@ namespace Pacman_Game.ViewModels
                 Pacman.IsDying = true;
                 _gameTimer.Stop();
 
-                // ✅ FIX #3: Detener el loop de fantasmas durante la animación de muerte.
                 SoundManager.Instance.StopGhostLoop();
                 _currentGhostLoop = null;
 
