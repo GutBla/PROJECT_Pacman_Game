@@ -1,5 +1,4 @@
-﻿using Avalonia.Controls;
-using Avalonia.Threading;
+﻿using Avalonia.Threading;
 using Pacman_Game.Managers;
 using Pacman_Game.Models;
 using Pacman_Game.Views;
@@ -13,19 +12,34 @@ namespace Pacman_Game.ViewModels
 {
     public class GameViewModel : ViewModelBase
     {
-        private int score;
-        private int lives;
-        private int dotsEaten = 0;
-
-        private DispatcherTimer powerPelletTimer;
-        private DateTime? _deathTime;
-        private DispatcherTimer _fruitTimer;
-        private DispatcherTimer _gameTimer;
-        private Random _random = new();
+        private int _score;
+        private int _lives;
+        private int _dotsEaten;
         private bool _isGameOver;
         private bool _isVictory;
-        private int _ghostsEatenDuringPower = 0;
-        private bool _gameOverWindowShown = false;
+        private bool _gameOverWindowShown;
+        private int _ghostsEatenDuringPower;
+        private DateTime? _deathTime;
+        private int _nextExtraLifeScore = 10000;
+        private readonly Random _random = new();
+        private readonly DispatcherTimer _gameTimer;
+        private readonly DispatcherTimer _powerPelletTimer;
+        private readonly DispatcherTimer _fruitTimer;
+        private readonly ItemFactory _itemFactory = new();
+        private string? _currentGhostLoop = null;
+        private int _soundUpdateCounter = 0;
+        private const int SoundUpdateInterval = 5;
+
+        public event EventHandler RequestClose = delegate { };
+
+        public Pacman Pacman { get; } = new();
+        public List<Ghost> Ghosts { get; } = [];
+        public Map GameMap { get; private set; } = new Map(0, 0);
+        public string[,] MapTextures { get; private set; } = new string[0, 0];
+
+        public ReactiveCommand<Unit, Unit> PauseGameCommand { get; }
+        public ReactiveCommand<Unit, Unit> RestartGameCommand { get; }
+        public ReactiveCommand<Unit, Unit> ReturnToMenuCommand { get; }
 
         public DateTime? DeathTime
         {
@@ -33,25 +47,17 @@ namespace Pacman_Game.ViewModels
             set => this.RaiseAndSetIfChanged(ref _deathTime, value);
         }
 
-        public void Dispose()
+        public int Score
         {
-            _gameTimer?.Stop();
-            _fruitTimer?.Stop();
-            powerPelletTimer?.Stop();
+            get => _score;
+            private set => this.RaiseAndSetIfChanged(ref _score, value);
         }
 
-        public Pacman Pacman { get; } = new();
-        public List<Ghost> Ghosts { get; } = new();
-        public string[,] MapTextures { get; private set; } = new string[0, 0];
-        private readonly IItemFactory _itemFactory = new ItemFactory();
-
-        public event EventHandler RequestClose = delegate { };
-
-        public ReactiveCommand<Unit, Unit> PauseGameCommand { get; }
-        public ReactiveCommand<Unit, Unit> RestartGameCommand { get; }
-        public ReactiveCommand<Unit, Unit> ReturnToMenuCommand { get; }
-
-        public Map GameMap { get; private set; } = new Map(0, 0);
+        public int Lives
+        {
+            get => _lives;
+            private set => this.RaiseAndSetIfChanged(ref _lives, value);
+        }
 
         public bool IsGameOver
         {
@@ -65,47 +71,82 @@ namespace Pacman_Game.ViewModels
             set => this.RaiseAndSetIfChanged(ref _isVictory, value);
         }
 
-        public int Score
+        public GameViewModel()
         {
-            get => score;
-            private set => this.RaiseAndSetIfChanged(ref score, value);
+            SoundManager.Instance.PlaySound("game_start_music");
+
+            _gameTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(Config.GameSpeed)
+            };
+            _gameTimer.Tick += (_, _) => UpdateGame();
+            _gameTimer.Start();
+
+            _powerPelletTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(10)
+            };
+            _powerPelletTimer.Tick += (_, _) => EndPowerPellet();
+
+            _fruitTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(10)
+            };
+            _fruitTimer.Tick += (_, _) => SpawnRandomFruit();
+
+            InitializeGame();
+
+            PauseGameCommand = ReactiveCommand.Create(PauseGame);
+            RestartGameCommand = ReactiveCommand.Create(RestartGame);
+            ReturnToMenuCommand = ReactiveCommand.Create(ReturnToMenu);
         }
 
-        public int Lives
+        public void Dispose()
         {
-            get => lives;
-            private set => this.RaiseAndSetIfChanged(ref lives, value);
+            _gameTimer.Stop();
+            _fruitTimer.Stop();
+            _powerPelletTimer.Stop();
         }
 
-public GameViewModel()
-{
-    SoundManager.Instance.PlaySound("beginning");
+        public void InitializeGame()
+        {
+            // ✅ FIX #2: Detener cualquier loop de fantasmas activo antes de resetear el estado.
+            SoundManager.Instance.StopGhostLoop();
 
-    // Timer principal: actualiza todo el juego
-    _gameTimer = new DispatcherTimer
-    {
-        Interval = TimeSpan.FromMilliseconds(Config.GameSpeed)
-    };
-    _gameTimer.Tick += (s, e) => UpdateGame();
-    _gameTimer.Start();
+            InitializeMap();
+            InitializeGhosts();
+            ResetPacmanPosition();
+            Score = 0;
+            Lives = Config.InitialLives;
+            _dotsEaten = 0;
+            IsGameOver = false;
+            IsVictory = false;
+            _ghostsEatenDuringPower = 0;
+            _gameOverWindowShown = false;
+            _nextExtraLifeScore = 10000;
+            _currentGhostLoop = null;
+            _soundUpdateCounter = 0;
 
-    // Timer para PowerPellet
-    powerPelletTimer = new DispatcherTimer
-    {
-        Interval = TimeSpan.FromSeconds(10)
-    };
-    powerPelletTimer.Tick += (s, e) => EndPowerPellet();
+            foreach (var ghost in Ghosts)
+            {
+                ghost.Reset();
+                ghost.ReturnedHome += OnGhostReturnedHome;
+            }
 
-    // Timer para frutas
-    _fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-    _fruitTimer.Tick += (s, e) => SpawnRandomFruit();
+            _fruitTimer.Stop();
+            _fruitTimer.Start();
 
-    InitializeGame();
+            Pacman.IsPowerPelletActive = false;
+            _powerPelletTimer.Stop();
 
-    PauseGameCommand = ReactiveCommand.Create(PauseGame);
-    RestartGameCommand = ReactiveCommand.Create(RestartGame);
-    ReturnToMenuCommand = ReactiveCommand.Create(ReturnToMenu);
-}
+            _gameTimer.Start();
+            UpdateGhostSoundLoop();
+        }
+
+        private void OnGhostReturnedHome(object? sender, EventArgs e)
+        {
+            SoundManager.Instance.PlaySound("ghost_return_home");
+        }
 
         private void UpdateGame()
         {
@@ -113,52 +154,37 @@ public GameViewModel()
 
             Pacman.Move(GameMap);
             HandleTeleports();
-
-
             CheckElementCollision();
 
- 
             foreach (var ghost in Ghosts)
-            {
                 ghost.ChasePacman(Pacman, GameMap);
-            }
-
 
             foreach (var ghost in Ghosts)
-            {
                 CheckPacmanGhostCollision(ghost);
-            }
-
 
             CheckVictoryCondition();
+            CheckExtraLife();
 
+            _soundUpdateCounter++;
+            if (_soundUpdateCounter >= SoundUpdateInterval)
+            {
+                _soundUpdateCounter = 0;
+                UpdateGhostSoundLoop();
+            }
 
             this.RaisePropertyChanged(nameof(Score));
             this.RaisePropertyChanged(nameof(Lives));
         }
 
-        public void InitializeGame()
+        private void CheckExtraLife()
         {
-            InitializeMap();
-            InitializeGhosts();
-            ResetPacmanPosition();
-            Score = 0;
-            Lives = Config.InitialLives;
-            dotsEaten = 0;
-            IsGameOver = false;
-            IsVictory = false;
-            foreach (var ghost in Ghosts)
+            if (Score >= _nextExtraLifeScore)
             {
-                ghost.Reset();
+                Lives++;
+                _nextExtraLifeScore += 10000;
+                SoundManager.Instance.PlaySound("player_extra_life");
             }
-
-            _fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-            _fruitTimer.Tick += (s, e) => SpawnRandomFruit();
-            _fruitTimer.Start();
-            _gameTimer.Start();
-            Pacman.IsPowerPelletActive = false;
         }
-
 
         private void ResetPacmanPosition()
         {
@@ -168,281 +194,146 @@ public GameViewModel()
             Pacman.NextDirection = Direction.Right;
         }
 
-        private void SpawnRandomFruit()
-        {
-            if (GameMap.Elements == null || GameMap.Elements.GetLength(0) == 0 || IsGameOver || IsVictory) return;
-            List<(int, int)> spawnPoints = new();
-            for (int y = 0; y < GameMap.Elements.GetLength(0); y++)
-            {
-                for (int x = 0; x < GameMap.Elements.GetLength(1); x++)
-                {
-                    if (GameMap.Elements[y, x] == "FR")
-                        spawnPoints.Add((x, y));
-                }
-            }
-            if (spawnPoints.Count > 0)
-            {
-                int index = _random.Next(spawnPoints.Count);
-                var (x, y) = spawnPoints[index];
-                string[] fruits = { "apple", "cherry", "strawberry", "orange", "melon", "galaxian", "bell" };
-                string fruit = fruits[_random.Next(fruits.Length)];
-                GameMap.Elements[y, x] = fruit;
-
-                DispatcherTimer fruitTimer = new() { Interval = TimeSpan.FromSeconds(5) };
-                fruitTimer.Tick += (s, e) =>
-                {
-                    if (GameMap.Elements != null && GameMap.Elements[y, x] == fruit)
-                        GameMap.Elements[y, x] = "FR";
-                    fruitTimer.Stop();
-                };
-                fruitTimer.Start();
-            }
-        }
-
-        private void CheckElementCollision()
-        {
-            if (GameMap == null || GameMap.Elements == null) return;
-
-            int x = (int)Math.Round(Pacman.X);
-            int y = (int)Math.Round(Pacman.Y);
-
-            if (y < 0 || y >= GameMap.Height || x < 0 || x >= GameMap.Width)
-                return;
-
-            string elementType = GameMap.Elements[y, x] ?? string.Empty;
-            if (string.IsNullOrEmpty(elementType))
-                return;
-
-            var item = _itemFactory.CreateItem(elementType, x, y);
-
-            if (item != null)
-            {
-                Score += item.Points;
-
-                switch (elementType)
-                {
-                    case "PD":
-                        SoundManager.Instance.PlaySound("chomp");
-                        break;
-                    case "PP":
-                        ActivatePowerPellet();
-                        SoundManager.Instance.PlaySound("extrapac");
-                        break;
-                    default:
-                        SoundManager.Instance.PlaySound("eatfruit");
-                        break;
-                }
-
-                GameMap.Elements[y, x] = string.Empty;
-            }
-        }
-
         private void HandleTeleports()
         {
             if (Pacman.X < 0) Pacman.X = GameMap.Width - 1;
             if (Pacman.X >= GameMap.Width) Pacman.X = 0;
         }
 
-        private void InitializeMap()
+        private void SpawnRandomFruit()
         {
-            // Mapa de Limites
-            int[,] gameMapData = new int[,]
-            {
-                {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-                {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-                {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
-                {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
-                {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
-                {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-                {1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1},
-                {1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1},
-                {1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1},
-                {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-                {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
-                {1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1},
-                {1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1},
-                {1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1},
-                {1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1},
-                {1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1},
-                {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1},
-                {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1},
-                {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-                {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
-            };
+            if (GameMap.Elements == null || IsGameOver || IsVictory) return;
 
-            // Mapa de Texturas
-            string[,] mapTexturesData = new string[,]
-            {
-                { "TL1", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "TR2", "TL2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "H2", "TR1" },
-                { "V1", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V2", "V1", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V2" },
-                { "V1", "0", "TL1", "H2", "H2", "TR1", "0", "TL1", "H2", "H2", "H2", "TR1", "0", "V2", "V1", "0", "TL1", "H2", "H2", "H2", "TR1", "0", "TL1", "H2", "H2", "TR1", "0", "V2" },
-                { "V1", "0", "V1", "0", "0", "V2", "0", "V1", "0", "0", "0", "V2", "0", "V2", "V1", "0", "V1", "0", "0", "0", "V2", "0", "V1", "0", "0", "V2", "0", "V2" },
-                { "V1", "0", "BL1", "H1", "H1", "BR1", "0", "BL1", "H1", "H1", "H1", "BR1", "0", "BL2", "BR2", "0", "BL1", "H1", "H1", "H1", "BR1", "0", "BL1", "H1", "H1", "BR1", "0", "V2" },
-                { "V1", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V2" },
-                { "V1", "0", "TL1", "H2", "H2", "TR1", "0", "TL1", "TR1", "0", "TL1", "H2", "H2", "H2", "H2", "H2", "H2", "TR1", "0", "TL1", "TR1", "0", "TL1", "H2", "H2", "TR1", "0", "V2" },
-                { "V1", "0", "BL1", "H1", "H1", "BR1", "0", "V1", "V2", "0", "BL1", "H1", "H1", "TR4", "TL4", "H1", "H1", "BR1", "0", "V1", "V2", "0", "BL1", "H1", "H1", "BR1", "0", "V2" },
-                { "V1", "0", "0", "0", "0", "0", "0", "V1", "V2", "0", "0", "0", "0", "V1", "V2", "0", "0", "0", "0", "V1", "V2", "0", "0", "0", "0", "0", "0", "V2" },
-                { "BL1", "H1", "H1", "H1", "H1", "TR4", "0", "V1", "BL2", "H2", "H2", "TR1", "0", "V1", "V2", "0", "TL1", "H2", "H2", "BR2", "V2", "0", "TL4", "H1", "H1", "H1", "H1", "BR1" },
-                { "0", "0", "0", "0", "0", "V1", "0", "V1", "TL4", "H1", "H1", "BR1", "0", "BL1", "BR1", "0", "BL1", "H1", "H1", "TR4", "V2", "0", "V2", "0", "0", "0", "0", "0" },
-                { "0", "0", "0", "0", "0", "V1", "0", "V1", "V2", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V1", "V2", "0", "V2", "0", "0", "0", "0", "0" },
-                { "0", "0", "0", "0", "0", "V1", "0", "V1", "V2", "0", "TL5", "H1", "H1", "0", "0", "H1", "H1", "TR5", "0", "V1", "V2", "0", "V2", "0", "0", "0", "0", "0" },
-                { "H2", "H2", "H2", "H2", "H2", "BR2", "0", "BL1", "BR1", "0", "V2", "0", "0", "0", "0", "0", "0", "V1", "0", "BL1", "BR1", "0", "BL2", "H2", "H2", "H2", "H2", "H2" },
-                { "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V2", "0", "0", "0", "0", "0", "0", "V1", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0" },
-                { "H1", "H1", "H1", "H1", "H1", "TR4", "0", "TL1", "TR1", "0", "V2", "0", "0", "0", "0", "0", "0", "V1", "0", "TL1", "TR1", "0", "TL4", "H1", "H1", "H1", "H1", "H1" },
-                { "0", "0", "0", "0", "0", "V1", "0", "V1", "V2", "0", "BL3", "H2", "H2", "H2", "H2", "H2", "H2", "BR3", "0", "V1", "V2", "0", "V2", "0", "0", "0", "0", "0" },
-                { "0", "0", "0", "0", "0", "V1", "0", "V1", "V2", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V1", "V2", "0", "V2", "0", "0", "0", "0", "0" },
-                { "0", "0", "0", "0", "0", "V1", "0", "V1", "V2", "0", "TL1", "H2", "H2", "H2", "H2", "H2", "H2", "TR1", "0", "V1", "V2", "0", "V2", "0", "0", "0", "0", "0" },
-                { "TL1", "H2", "H2", "H2", "H2", "BR2", "0", "BL1", "BR1", "0", "BL1", "H1", "H1", "TR4", "TL4", "H1", "H1", "BR1", "0", "BL1", "BR1", "0", "BL2", "H2", "H2", "H2", "H2", "TR1" },
-                { "V1", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V1", "V2", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V2" },
-                { "V1", "0", "TL1", "H2", "H2", "TR1", "0", "TL1", "H2", "H2", "H2", "TR1", "0", "V1", "V2", "0", "TL1", "H2", "H2", "H2", "TR1", "0", "TL1", "H2", "H2", "TR1", "0", "V2" },
-                { "V1", "0", "BL1", "H1", "TR4", "V2", "0", "BL1", "H1", "H1", "H1", "BR1", "0", "BL1", "BR1", "0", "BL1", "H1", "H1", "H1", "BR1", "0", "V1", "TL4", "H1", "BR1", "0", "V2" },
-                { "V1", "0", "0", "0", "V1", "V2", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V1", "V2", "0", "0", "0", "V2" },
-                { "BL1", "H1", "TR4", "0", "V1", "V2", "0", "TL1", "TR1", "0", "TL1", "H2", "H2", "H2", "H2", "H2", "H2", "TR1", "0", "TL1", "TR1", "0", "V1", "V2", "0", "TL4", "H1", "BR1" },
-                { "TL1", "H2", "BR2", "0", "BL1", "BR1", "0", "V1", "V2", "0", "BL1", "H1", "H1", "TR4", "TL4", "H1", "H1", "BR1", "0", "V1", "V2", "0", "BL1", "BR1", "0", "BL2", "H2", "TR1" },
-                { "V1", "0", "0", "0", "0", "0", "0", "V1", "V2", "0", "0", "0", "0", "V1", "V2", "0", "0", "0", "0", "V1", "V2", "0", "0", "0", "0", "0", "0", "V2" },
-                { "V1", "0", "TL1", "H2", "H2", "H2", "H2", "BR2", "BL2", "H2", "H2", "TR1", "0", "V1", "V2", "0", "TL1", "H2", "H2", "BR2", "BL2", "H2", "H2", "H2", "H2", "TR1", "0", "V2" },
-                { "V1", "0", "BL1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "BR1", "0", "BL1", "BR1", "0", "BL1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "BR1", "0", "V2" },
-                { "V1", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "V2" },
-                { "BL1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "H1", "BR1" }
-            };
+            List<(int x, int y)> spawnPoints = [];
+            for (int y = 0; y < GameMap.Elements.GetLength(0); y++)
+                for (int x = 0; x < GameMap.Elements.GetLength(1); x++)
+                    if (GameMap.Elements[y, x] == "FR")
+                        spawnPoints.Add((x, y));
 
-            // Mapa de Elementos
-            string[,] elementsData = new string[,]
-           {
-                { "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
-                { "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "" },
-                { "", "PD", "", "", "", "", "PD", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "PD", "", "", "", "", "PD", "" },
-                { "", "PP", "", "", "", "", "PD", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "PD", "", "", "", "", "PP", "" },
-                { "", "PD", "", "", "", "", "PD", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "PD", "", "", "", "", "PD", "" },
-                { "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "" },
-                { "", "PD", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "PD", "" },
-                { "", "PD", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "PD", "" },
-                { "", "PD", "PD", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "PD", "PD", "" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "",  "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "TP", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "", "", "", "TP" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "FR", "", "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "", "", "", "", "", "", "PD", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "", "", "", "" },
-                { "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "" },
-                { "", "PD", "", "", "", "", "PD", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "PD", "", "", "", "", "PD", "" },
-                { "", "PD", "", "", "", "", "PD", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "PD", "", "", "", "", "PD", "" },
-                { "", "PP", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PP", "" },
-                { "", "", "", "PD", "", "", "PD", "", "", "PD", "", "", "", "", "", "", "", "", "PD", "", "", "PD", "", "", "PD", "", "", "" },
-                { "", "", "", "PD", "", "", "PD", "", "", "PD", "", "", "", "", "", "", "", "", "PD", "", "", "PD", "", "", "PD", "", "", "" },
-                { "", "PD", "PD", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "", "", "PD", "PD", "PD", "PD", "PD", "PD", "" },
-                { "", "PD", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "", "", "", "", "","PD", "" },
-                { "", "PD", "", "", "", "", "", "", "", "", "", "", "PD", "", "", "PD", "", "", "", "", "", "", "", "", "", "","PD", "" },
-                { "", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "PD", "" },
-                { "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" }
+            if (spawnPoints.Count == 0) return;
+
+            var (fx, fy) = spawnPoints[_random.Next(spawnPoints.Count)];
+            string[] fruits = ["apple", "cherry", "strawberry", "orange", "melon", "galaxian", "bell"];
+            string fruit = fruits[_random.Next(fruits.Length)];
+            GameMap.Elements[fy, fx] = fruit;
+
+            var fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            fruitTimer.Tick += (_, _) =>
+            {
+                if (GameMap.Elements[fy, fx] == fruit)
+                    GameMap.Elements[fy, fx] = "FR";
+                fruitTimer.Stop();
             };
-            GameMap = new Map(gameMapData.GetLength(1), gameMapData.GetLength(0));
-            GameMap.InitializeFromData(gameMapData, mapTexturesData, elementsData);
+            fruitTimer.Start();
         }
 
-        private void InitializeGhosts()
+        private void CheckElementCollision()
         {
-            var ghostFactory = new GhostFactory();
-            Ghosts.Clear();
-            Ghosts.Add(ghostFactory.CreateGhost(GhostColor.Red, 14, 14));
-            Ghosts.Add(ghostFactory.CreateGhost(GhostColor.Pink, 14, 14));
-            Ghosts.Add(ghostFactory.CreateGhost(GhostColor.Blue, 14, 14));
-            Ghosts.Add(ghostFactory.CreateGhost(GhostColor.Orange, 14, 14));
+            if (GameMap?.Elements == null) return;
+
+            int x = (int)Math.Round(Pacman.X);
+            int y = (int)Math.Round(Pacman.Y);
+            if (y < 0 || y >= GameMap.Height || x < 0 || x >= GameMap.Width) return;
+
+            string elementType = GameMap.Elements[y, x] ?? string.Empty;
+            if (string.IsNullOrEmpty(elementType)) return;
+
+            var item = _itemFactory.CreateItem(elementType, x, y);
+            if (item == null) return;
+
+            Score += item.Points;
+
+            switch (elementType)
+            {
+                case "PD":
+                    _dotsEaten++;
+                    Ghost.UpdateDotsEaten(_dotsEaten);
+                    SoundManager.Instance.PlaySound("player_eat_pellet");
+                    break;
+                case "PP":
+                    ActivatePowerPellet();
+                    break;
+                default:
+                    SoundManager.Instance.PlaySound("player_eat_fruit");
+                    break;
+            }
+
+            GameMap.Elements[y, x] = string.Empty;
         }
 
         private void ActivatePowerPellet()
         {
             Pacman.IsPowerPelletActive = true;
             foreach (var ghost in Ghosts)
-            {
                 ghost.SetFrightened();
-            }
-            powerPelletTimer.Start();
+
+            SoundManager.Instance.StartGhostLoopAsync("ghost_vulnerable_mode");
+            _currentGhostLoop = "ghost_vulnerable_mode";
+
+            _powerPelletTimer.Stop();
+            _powerPelletTimer.Start();
         }
 
         private void EndPowerPellet()
         {
             Pacman.IsPowerPelletActive = false;
             _ghostsEatenDuringPower = 0;
-            powerPelletTimer.Stop();
+            _powerPelletTimer.Stop();
+            _currentGhostLoop = null;
+
             foreach (var ghost in Ghosts)
-            {
-                if (ghost.State == GhostState.Frightened)
-                {
+                if (ghost.State == GhostState.Frightened || ghost.State == GhostState.FlashingFrightened)
                     ghost.State = GhostState.Chase;
-                }
-            }
+
+            UpdateGhostSoundLoop();
         }
 
         private void CheckPacmanGhostCollision(Ghost ghost)
         {
-            if ((int)Math.Round(Pacman.X) == (int)Math.Round(ghost.X) &&
-                (int)Math.Round(Pacman.Y) == (int)Math.Round(ghost.Y))
+            if ((int)Math.Round(Pacman.X) != (int)Math.Round(ghost.X) ||
+                (int)Math.Round(Pacman.Y) != (int)Math.Round(ghost.Y))
+                return;
+
+            if (ghost.State == GhostState.Frightened || ghost.State == GhostState.FlashingFrightened)
             {
-                if (ghost.State == GhostState.Frightened)
-                {
-                    ghost.State = GhostState.Eaten;
-                    int points = 200 * (int)Math.Pow(2, _ghostsEatenDuringPower);
-                    Score += points;
-                    _ghostsEatenDuringPower++;
-                    SoundManager.Instance.PlaySound("eatghost");
-                }
-                else if (ghost.State != GhostState.Eaten && !Pacman.IsDying)
-                {
-                    Lives--;
-                    _ghostsEatenDuringPower = 0;
-                    DeathTime = DateTime.Now;
-                    Pacman.IsDying = true;
-                    _gameTimer.Stop();
-                    SoundManager.Instance.PlaySound("death");
-                    PlayDeathAnimation();
-                }
+                ghost.State = GhostState.Eaten;
+                Score += 200 * (int)Math.Pow(2, _ghostsEatenDuringPower);
+                _ghostsEatenDuringPower++;
+                SoundManager.Instance.PlaySound("player_eat_ghost");
+            }
+            else if (ghost.State != GhostState.Eaten && !Pacman.IsDying)
+            {
+                Lives--;
+                _ghostsEatenDuringPower = 0;
+                DeathTime = DateTime.Now;
+                Pacman.IsDying = true;
+                _gameTimer.Stop();
+
+                // ✅ FIX #3: Detener el loop de fantasmas durante la animación de muerte.
+                SoundManager.Instance.StopGhostLoop();
+                _currentGhostLoop = null;
+
+                SoundManager.Instance.PlaySound("player_death");
+                PlayDeathAnimation();
             }
         }
 
         private void CheckVictoryCondition()
         {
-            if (GameMap == null || GameMap.Elements == null) return;
+            if (GameMap?.Elements == null || IsVictory) return;
 
-            bool allDotsEaten = true;
             for (int y = 0; y < GameMap.Elements.GetLength(0); y++)
-            {
                 for (int x = 0; x < GameMap.Elements.GetLength(1); x++)
                 {
-                    string element = GameMap.Elements[y, x] ?? string.Empty;
-                    if (element == "PD" || element == "PP")
-                    {
-                        allDotsEaten = false;
-                        break;
-                    }
+                    string el = GameMap.Elements[y, x] ?? string.Empty;
+                    if (el == "PD" || el == "PP") return;
                 }
-                if (!allDotsEaten) break;
-            }
 
-            if (allDotsEaten && !IsVictory)
-            {
-                IsVictory = true;
-                _gameTimer.Stop();
-                _fruitTimer.Stop();
-                SoundManager.Instance.PlaySound("intermission");
-                ShowVictoryWindow();
-            }
+            IsVictory = true;
+            _gameTimer.Stop();
+            _fruitTimer.Stop();
+            SoundManager.Instance.PlaySound("game_intermission_music");
+            ShowVictoryWindow();
         }
 
         private void ShowVictoryWindow()
@@ -458,11 +349,10 @@ public GameViewModel()
         {
             if (_gameOverWindowShown) return;
             _gameOverWindowShown = true;
-
             Dispatcher.UIThread.Post(() =>
             {
                 var gameOverWindow = new GameOverWindow();
-                gameOverWindow.Closed += (s, e) => _gameOverWindowShown = false;
+                gameOverWindow.Closed += (_, _) => _gameOverWindowShown = false;
                 gameOverWindow.Show();
             });
         }
@@ -471,9 +361,7 @@ public GameViewModel()
         {
             Pacman.ResetPosition();
             foreach (var ghost in Ghosts)
-            {
                 ghost.Reset();
-            }
             DeathTime = null;
         }
 
@@ -484,6 +372,7 @@ public GameViewModel()
                 Pacman.DeathAnimationFrame = i;
                 await Task.Delay(100);
             }
+
             await Task.Delay(500);
 
             if (Lives > 0)
@@ -492,6 +381,7 @@ public GameViewModel()
                 Pacman.IsDying = false;
                 Pacman.DeathAnimationFrame = 0;
                 _gameTimer.Start();
+                UpdateGhostSoundLoop();
             }
             else
             {
@@ -502,26 +392,168 @@ public GameViewModel()
 
         private void PauseGame()
         {
-            if (_gameTimer.IsEnabled)
-            {
-                _gameTimer.Stop();
-            }
-            else
-            {
-                _gameTimer.Start();
-            }
+            if (_gameTimer.IsEnabled) _gameTimer.Stop();
+            else _gameTimer.Start();
         }
 
-        private void RestartGame()
-        {
-            InitializeGame();
-        }
+        private void RestartGame() => InitializeGame();
 
         private void ReturnToMenu()
         {
             RequestClose?.Invoke(this, EventArgs.Empty);
-            var mainWindow = new MainWindow();
-            mainWindow.Show();
+            Dispatcher.UIThread.Post(() =>
+            {
+                var mainWindow = new MainWindow();
+                mainWindow.Show();
+            });
+        }
+
+        private void UpdateGhostSoundLoop()
+        {
+            if (Pacman.IsPowerPelletActive) return;
+
+            bool anyChase = false;
+            bool anyScatter = false;
+            foreach (var ghost in Ghosts)
+            {
+                if (ghost.State == GhostState.Chase) anyChase = true;
+                if (ghost.State == GhostState.Scatter) anyScatter = true;
+            }
+
+            string? newLoop = null;
+            if (anyChase) newLoop = "ghost_move_fast_1";
+            else if (anyScatter) newLoop = "ghost_move_normal";
+
+            if (_currentGhostLoop != newLoop)
+            {
+                _currentGhostLoop = newLoop;
+                if (newLoop != null)
+                    SoundManager.Instance.StartGhostLoopAsync(newLoop);
+                else
+                    SoundManager.Instance.StopGhostLoop();
+            }
+        }
+
+        private void InitializeGhosts()
+        {
+            var factory = new GhostFactory();
+            Ghosts.Clear();
+            Ghosts.Add(factory.CreateGhost(GhostColor.Red, 14, 11));
+            Ghosts.Add(factory.CreateGhost(GhostColor.Pink, 14, 14));
+            Ghosts.Add(factory.CreateGhost(GhostColor.Blue, 12, 14));
+            Ghosts.Add(factory.CreateGhost(GhostColor.Orange, 16, 14));
+        }
+
+        private void InitializeMap()
+        {
+            int[,] gameMapData =
+            {
+                {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+                {1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1},
+                {1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1},
+                {1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1},
+                {1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1},
+                {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+                {1,0,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,0,1},
+                {1,0,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,0,1},
+                {1,0,0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,1},
+                {1,1,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,1,1},
+                {1,1,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,1,1},
+                {1,1,1,1,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,1,1,1},
+                {1,1,1,1,1,1,0,1,1,0,1,1,1,0,0,1,1,1,0,1,1,0,1,1,1,1,1,1},
+                {1,1,1,1,1,1,0,1,1,0,1,0,0,0,0,0,0,1,0,1,1,0,1,1,1,1,1,1},
+                {0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0},
+                {1,1,1,1,1,1,0,1,1,0,1,0,0,0,0,0,0,1,0,1,1,0,1,1,1,1,1,1},
+                {1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1},
+                {1,1,1,1,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,1,1,1},
+                {1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1},
+                {1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1},
+                {1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1},
+                {1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1},
+                {1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1},
+                {1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1},
+                {1,1,1,0,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,1,1},
+                {1,1,1,0,1,1,0,1,1,0,1,1,1,1,1,1,1,1,0,1,1,0,1,1,0,1,1,1},
+                {1,0,0,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,1,1,0,0,0,0,0,0,1},
+                {1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1},
+                {1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1},
+                {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+                {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+            };
+
+            string[,] mapTexturesData =
+            {
+                {"TL1","H2","H2","H2","H2","H2","H2","H2","H2","H2","H2","H2","H2","TR2","TL2","H2","H2","H2","H2","H2","H2","H2","H2","H2","H2","H2","H2","TR1"},
+                {"V1","0","0","0","0","0","0","0","0","0","0","0","0","V2","V1","0","0","0","0","0","0","0","0","0","0","0","0","V2"},
+                {"V1","0","TL1","H2","H2","TR1","0","TL1","H2","H2","H2","TR1","0","V2","V1","0","TL1","H2","H2","H2","TR1","0","TL1","H2","H2","TR1","0","V2"},
+                {"V1","0","V1","0","0","V2","0","V1","0","0","0","V2","0","V2","V1","0","V1","0","0","0","V2","0","V1","0","0","V2","0","V2"},
+                {"V1","0","BL1","H1","H1","BR1","0","BL1","H1","H1","H1","BR1","0","BL2","BR2","0","BL1","H1","H1","H1","BR1","0","BL1","H1","H1","BR1","0","V2"},
+                {"V1","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","V2"},
+                {"V1","0","TL1","H2","H2","TR1","0","TL1","TR1","0","TL1","H2","H2","H2","H2","H2","H2","TR1","0","TL1","TR1","0","TL1","H2","H2","TR1","0","V2"},
+                {"V1","0","BL1","H1","H1","BR1","0","V1","V2","0","BL1","H1","H1","TR4","TL4","H1","H1","BR1","0","V1","V2","0","BL1","H1","H1","BR1","0","V2"},
+                {"V1","0","0","0","0","0","0","V1","V2","0","0","0","0","V1","V2","0","0","0","0","V1","V2","0","0","0","0","0","0","V2"},
+                {"BL1","H1","H1","H1","H1","TR4","0","V1","BL2","H2","H2","TR1","0","V1","V2","0","TL1","H2","H2","BR2","V2","0","TL4","H1","H1","H1","H1","BR1"},
+                {"0","0","0","0","0","V1","0","V1","TL4","H1","H1","BR1","0","BL1","BR1","0","BL1","H1","H1","TR4","V2","0","V2","0","0","0","0","0"},
+                {"0","0","0","0","0","V1","0","V1","V2","0","0","0","0","0","0","0","0","0","0","V1","V2","0","V2","0","0","0","0","0"},
+                {"0","0","0","0","0","V1","0","V1","V2","0","TL5","H1","H1","0","0","H1","H1","TR5","0","V1","V2","0","V2","0","0","0","0","0"},
+                {"H2","H2","H2","H2","H2","BR2","0","BL1","BR1","0","V2","0","0","0","0","0","0","V1","0","BL1","BR1","0","BL2","H2","H2","H2","H2","H2"},
+                {"0","0","0","0","0","0","0","0","0","0","V2","0","0","0","0","0","0","V1","0","0","0","0","0","0","0","0","0","0"},
+                {"H1","H1","H1","H1","H1","TR4","0","TL1","TR1","0","V2","0","0","0","0","0","0","V1","0","TL1","TR1","0","TL4","H1","H1","H1","H1","H1"},
+                {"0","0","0","0","0","V1","0","V1","V2","0","BL3","H2","H2","H2","H2","H2","H2","BR3","0","V1","V2","0","V2","0","0","0","0","0"},
+                {"0","0","0","0","0","V1","0","V1","V2","0","0","0","0","0","0","0","0","0","0","V1","V2","0","V2","0","0","0","0","0"},
+                {"0","0","0","0","0","V1","0","V1","V2","0","TL1","H2","H2","H2","H2","H2","H2","TR1","0","V1","V2","0","V2","0","0","0","0","0"},
+                {"TL1","H2","H2","H2","H2","BR2","0","BL1","BR1","0","BL1","H1","H1","TR4","TL4","H1","H1","BR1","0","BL1","BR1","0","BL2","H2","H2","H2","H2","TR1"},
+                {"V1","0","0","0","0","0","0","0","0","0","0","0","0","V1","V2","0","0","0","0","0","0","0","0","0","0","0","0","V2"},
+                {"V1","0","TL1","H2","H2","TR1","0","TL1","H2","H2","H2","TR1","0","V1","V2","0","TL1","H2","H2","H2","TR1","0","TL1","H2","H2","TR1","0","V2"},
+                {"V1","0","BL1","H1","TR4","V2","0","BL1","H1","H1","H1","BR1","0","BL1","BR1","0","BL1","H1","H1","H1","BR1","0","V1","TL4","H1","BR1","0","V2"},
+                {"V1","0","0","0","V1","V2","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","V1","V2","0","0","0","V2"},
+                {"BL1","H1","TR4","0","V1","V2","0","TL1","TR1","0","TL1","H2","H2","H2","H2","H2","H2","TR1","0","TL1","TR1","0","V1","V2","0","TL4","H1","BR1"},
+                {"TL1","H2","BR2","0","BL1","BR1","0","V1","V2","0","BL1","H1","H1","TR4","TL4","H1","H1","BR1","0","V1","V2","0","BL1","BR1","0","BL2","H2","TR1"},
+                {"V1","0","0","0","0","0","0","V1","V2","0","0","0","0","V1","V2","0","0","0","0","V1","V2","0","0","0","0","0","0","V2"},
+                {"V1","0","TL1","H2","H2","H2","H2","BR2","BL2","H2","H2","TR1","0","V1","V2","0","TL1","H2","H2","BR2","BL2","H2","H2","H2","H2","TR1","0","V2"},
+                {"V1","0","BL1","H1","H1","H1","H1","H1","H1","H1","H1","BR1","0","BL1","BR1","0","BL1","H1","H1","H1","H1","H1","H1","H1","H1","BR1","0","V2"},
+                {"V1","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","V2"},
+                {"BL1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","H1","BR1"}
+            };
+
+            string[,] elementsData =
+            {
+                {"","","","","","","","","","","","","","","","","","","","","","","","","","","",""},
+                {"","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","","","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD",""},
+                {"","PD","","","","","PD","","","","","","PD","","","PD","","","","","","PD","","","","","PD",""},
+                {"","PP","","","","","PD","","","","","","PD","","","PD","","","","","","PD","","","","","PP",""},
+                {"","PD","","","","","PD","","","","","","PD","","","PD","","","","","","PD","","","","","PD",""},
+                {"","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD",""},
+                {"","PD","","","","","PD","","","PD","","","","","","","","","PD","","","PD","","","","","PD",""},
+                {"","PD","","","","","PD","","","PD","","","","","","","","","PD","","","PD","","","","","PD",""},
+                {"","PD","PD","PD","PD","PD","PD","","","PD","PD","PD","PD","","","PD","PD","PD","PD","","","PD","PD","PD","PD","PD","PD",""},
+                {"","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","",""},
+                {"","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","",""},
+                {"","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","",""},
+                {"","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","",""},
+                {"","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","",""},
+                {"TP","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","","TP"},
+                {"","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","",""},
+                {"","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","",""},
+                {"","","","","","","PD","","","","","","","","FR","","","","","","","PD","","","","","",""},
+                {"","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","",""},
+                {"","","","","","","PD","","","","","","","","","","","","","","","PD","","","","","",""},
+                {"","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","","","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD",""},
+                {"","PD","","","","","PD","","","","","","PD","","","PD","","","","","","PD","","","","","PD",""},
+                {"","PD","","","","","PD","","","","","","PD","","","PD","","","","","","PD","","","","","PD",""},
+                {"","PP","PD","PD","","","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","","","PD","PD","PP",""},
+                {"","","","PD","","","PD","","","PD","","","","","","","","","PD","","","PD","","","PD","","",""},
+                {"","","","PD","","","PD","","","PD","","","","","","","","","PD","","","PD","","","PD","","",""},
+                {"","PD","PD","PD","PD","PD","PD","","","PD","PD","PD","PD","","","PD","PD","PD","PD","","","PD","PD","PD","PD","PD","PD",""},
+                {"","PD","","","","","","","","","","","PD","","","PD","","","","","","","","","","","PD",""},
+                {"","PD","","","","","","","","","","","PD","","","PD","","","","","","","","","","","PD",""},
+                {"","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD","PD",""},
+                {"","","","","","","","","","","","","","","","","","","","","","","","","","","",""}
+            };
+
+            GameMap = new Map(gameMapData.GetLength(1), gameMapData.GetLength(0));
+            GameMap.InitializeFromData(gameMapData, mapTexturesData, elementsData);
+            MapTextures = mapTexturesData;
         }
     }
 }

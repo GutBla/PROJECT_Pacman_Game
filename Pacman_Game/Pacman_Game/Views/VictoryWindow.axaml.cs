@@ -10,7 +10,7 @@ namespace Pacman_Game.Views
 {
     public partial class VictoryWindow : Window
     {
-        public int Score { get; set; }
+        public int Score { get; private set; }
 
         private TextBox? _nameTextBox;
         private Button? _restartButton;
@@ -20,68 +20,43 @@ namespace Pacman_Game.Views
         public VictoryWindow()
         {
             InitializeComponent();
+#if DEBUG
             this.AttachDevTools();
-            this.Opened += VictoryWindow_Opened;
+#endif
+            this.Opened += OnOpened;
         }
 
-        public VictoryWindow(int score) : this()
-        {
-            Score = score;
-        }
+        public VictoryWindow(int score) : this() => Score = score;
 
-        private void VictoryWindow_Opened(object? sender, EventArgs e)
-        {
-            Console.WriteLine("VictoryWindow abierta - conectando eventos");
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
+        private void OnOpened(object? sender, EventArgs e)
+        {
             _nameTextBox = this.FindControl<TextBox>("NameTextBox");
             _restartButton = this.FindControl<Button>("RestartButton");
             _menuButton = this.FindControl<Button>("MenuButton");
             _saveScoreButton = this.FindControl<Button>("SaveScoreButton");
 
-            Console.WriteLine($"NameTextBox encontrado: {_nameTextBox != null}");
-            Console.WriteLine($"RestartButton encontrado: {_restartButton != null}");
-            Console.WriteLine($"MenuButton encontrado: {_menuButton != null}");
-            Console.WriteLine($"SaveScoreButton encontrado: {_saveScoreButton != null}");
-
-            if (_restartButton != null)
-            {
-                _restartButton.Click += (s, e) => RestartGame();
-            }
-
-            if (_menuButton != null)
-            {
-                _menuButton.Click += (s, e) => ReturnToMenu();
-            }
-
-            if (_saveScoreButton != null)
-            {
-                _saveScoreButton.Click += (s, e) => SaveScore();
-            }
+            if (_restartButton != null) _restartButton.Click += (_, _) => RestartGame();
+            if (_menuButton != null) _menuButton.Click += (_, _) => ReturnToMenu();
+            if (_saveScoreButton != null) _saveScoreButton.Click += (_, _) => SaveScore();
 
             var scoreTextBlock = this.FindControl<TextBlock>("ScoreTextBlock");
             if (scoreTextBlock != null)
-            {
                 scoreTextBlock.Text = $"Puntuación Total: {Score}";
-            }
 
             _nameTextBox?.Focus();
         }
 
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-        }
-
         private void RestartGame()
         {
+            var gameWindow = new GameWindow();
+            gameWindow.Show();
             this.Close();
-            var newGameWindow = new GameWindow();
-            newGameWindow.Show();
         }
 
         private void ReturnToMenu()
         {
-            Console.WriteLine("ReturnToMenu llamado");
             var mainWindow = new MainWindow();
             mainWindow.Show();
             this.Close();
@@ -89,55 +64,32 @@ namespace Pacman_Game.Views
 
         private void SaveScore()
         {
-            Console.WriteLine("SaveScore llamado");
-
             if (_nameTextBox == null || string.IsNullOrWhiteSpace(_nameTextBox.Text))
             {
-                Console.WriteLine("Nombre vacío");
-                var dialog = new MessageDialog("Por favor ingresa tu nombre");
-                dialog.ShowDialog(this);
+                new MessageDialog("Por favor ingresa tu nombre.").ShowDialog(this);
                 return;
             }
 
-            Console.WriteLine($"Nombre ingresado: {_nameTextBox.Text}");
-            Console.WriteLine($"Puntuación a guardar: {Score}");
-
-            var scoreRecord = new ScoreRecord
+            bool success = ScoreService.SaveScore(new ScoreRecord
             {
                 Score = Score,
-                Name = _nameTextBox.Text,
+                Name = _nameTextBox.Text.Trim(),
                 Rank = 0
-            };
+            });
 
-            bool success = ScoreService.SaveScore(scoreRecord);
-
-            if (success)
-            {
-                Console.WriteLine("Puntuación guardada exitosamente");
-                var dialog = new MessageDialog("Puntuación guardada exitosamente!");
-                dialog.ShowDialog(this);
-            }
-            else
-            {
-                Console.WriteLine("Error al guardar puntuación");
-                var dialog = new MessageDialog("Error al guardar la puntuación. Verifica los logs.");
-                dialog.ShowDialog(this);
-            }
+            new MessageDialog(success
+                ? "Puntuación guardada exitosamente."
+                : "Error al guardar la puntuación.").ShowDialog(this);
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
         {
-            Console.WriteLine($"Tecla presionada: {e.Key}");
-
-            if (e.Key == Key.Enter)
-            {
-                SaveScore();
-            }
-            else if (e.Key == Key.Escape)
-            {
-                ReturnToMenu();
-            }
             base.OnKeyDown(e);
+            switch (e.Key)
+            {
+                case Key.Enter: SaveScore(); break;
+                case Key.Escape: ReturnToMenu(); break;
+            }
         }
     }
 }

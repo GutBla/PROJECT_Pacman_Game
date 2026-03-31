@@ -13,21 +13,12 @@ namespace Pacman_Game.Views
 #if DEBUG
             this.AttachDevTools();
 #endif
-            var messageTextBlock = this.FindControl<TextBlock>("MessageText");
-            if (messageTextBlock != null)
-            {
-                messageTextBlock.Text = message;
-            }
+            var tb = this.FindControl<TextBlock>("MessageText");
+            if (tb != null) tb.Text = message;
         }
 
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-        }
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
-        private void OKButton_Click(object sender, RoutedEventArgs e)
-        {
-            this.Close();
-        }
+        private void OKButton_Click(object sender, RoutedEventArgs e) => this.Close();
     }
 }

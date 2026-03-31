@@ -15,17 +15,9 @@ namespace Pacman_Game.Views
             this.AttachDevTools();
 #endif
             DataContext = new GameViewModel();
-
-            this.KeyDown += (s, e) =>
-            {
-                if (e.Key == Key.Escape)
-                    this.Close();
-            };
+            this.KeyDown += (_, e) => { if (e.Key == Key.Escape) this.Close(); };
         }
 
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-        }
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
     }
 }

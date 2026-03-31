@@ -1,6 +1,4 @@
-﻿// HighScoresWindow.axaml.cs
-using Avalonia;
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Pacman_Game.ViewModels;
@@ -15,14 +13,8 @@ namespace Pacman_Game.Views
             DataContext = new HighScoresViewModel();
         }
 
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-        }
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            this.Close();
-        }
+        private void BackButton_Click(object sender, RoutedEventArgs e) => this.Close();
     }
 }

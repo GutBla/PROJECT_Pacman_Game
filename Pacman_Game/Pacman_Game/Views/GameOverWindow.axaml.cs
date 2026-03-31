@@ -2,14 +2,12 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
-using Pacman_Game.ViewModels;
 using System;
 
 namespace Pacman_Game.Views
 {
     public partial class GameOverWindow : Window
     {
-
         public GameOverWindow()
         {
             InitializeComponent();
@@ -18,34 +16,24 @@ namespace Pacman_Game.Views
 #endif
         }
 
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-        }
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
         private void RestartButton_Click(object sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            var gameWindow = new GameWindow();
-            gameWindow.Show();
+            new GameWindow().Show();
             this.Close();
         }
 
         private void MenuButton_Click(object sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            var mainWindow = new MainWindow();
-            mainWindow.Show();
+            new MainWindow().Show();
             this.Close();
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
         {
-            if (e.Key == Key.Escape)
-            {
-                var mainWindow = new MainWindow();
-                mainWindow.Show();
-                this.Close();
-            }
             base.OnKeyDown(e);
+            if (e.Key == Key.Escape) { new MainWindow().Show(); this.Close(); }
         }
 
         protected override void OnClosed(EventArgs e)

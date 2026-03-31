@@ -5,16 +5,28 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
+  <!-- Recursos incrustados (imágenes, etc.) -->
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
+  <!-- Excluir los archivos de scores de los recursos (ya que no se necesitan embebidos) -->
   <ItemGroup>
     <AvaloniaResource Remove="Assets\scores\**" />
     <AvaloniaXaml Remove="Assets\scores\**" />
     <Compile Remove="Assets\scores\**" />
     <EmbeddedResource Remove="Assets\scores\**" />
     <None Remove="Assets\scores\**" />
+  </ItemGroup>
+
+  <!-- Copiar los archivos de sonido al directorio de salida -->
+  <ItemGroup>
+    <None Update="Assets\sounds\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 

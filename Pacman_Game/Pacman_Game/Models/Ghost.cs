@@ -1,30 +1,28 @@
 ﻿using System;
 using System.Collections.Generic;
-using Avalonia.Threading;
-using ReactiveUI;
 
 namespace Pacman_Game.Models
 {
     public enum GhostColor { Red, Pink, Blue, Orange }
-    public enum GhostState { LeavingHouse, Scatter, Chase, Frightened, Eaten }
+    public enum GhostState { LeavingHouse, Scatter, Chase, Frightened, FlashingFrightened, Eaten }
 
     public abstract class Ghost : Character
     {
+        private readonly Random _random = new();
+        private int _stateTimer;
+        private int _scatterCount;
+        private const int MaxScatterCycles = 4;
+        protected (int X, int Y) SpawnPoint;
+        protected (int X, int Y) HouseExit = (14, 11);
+        private readonly int _dotsRequiredToLeave;
+        private static int _dotsEatenGlobal;
+
+        public event EventHandler? ReturnedHome;
+
         public GhostColor Color { get; }
         public GhostState State { get; set; } = GhostState.LeavingHouse;
         public virtual double SpeedFactor { get; } = 0.85;
-        public bool IsInTunnel { get; set; } = false;
-
-        private Random random = new Random();
-        private int _stateTimer = 0;
-        private int _scatterCount = 0;
-        private const int MAX_SCATTER_CYCLES = 4;
-
-        protected (int X, int Y) SpawnPoint;
-        protected (int X, int Y) HouseExit = (14, 11);
-        private int _dotsRequiredToLeave;
-        private static int _dotsEatenGlobal;
-        private bool _isFrightenedEnding = false;
+        public bool IsInTunnel { get; set; }
 
         protected Ghost(GhostColor color, double x, double y, int dotsRequiredToLeave)
         {
@@ -36,19 +34,16 @@ namespace Pacman_Game.Models
             _dotsRequiredToLeave = dotsRequiredToLeave;
         }
 
-        // Actualiza el contador global de puntos comidos
         public static void UpdateDotsEaten(int dotsEaten) => _dotsEatenGlobal = dotsEaten;
 
-        // Retorna la velocidad actual según el estado
         public double GetCurrentSpeed()
         {
             if (IsInTunnel) return 0.4;
-            if (State == GhostState.Eaten) return 2.0;
-            if (State == GhostState.Frightened) return 0.5;
+            if (State == GhostState.Eaten) return 2.5;
+            if (State == GhostState.Frightened || State == GhostState.FlashingFrightened) return 0.5;
             return State == GhostState.Chase ? 0.85 : 0.75;
         }
 
-        // Actualiza el estado del fantasma según temporizador y ciclos
         public void UpdateState()
         {
             if (State == GhostState.LeavingHouse && _dotsEatenGlobal >= _dotsRequiredToLeave)
@@ -57,10 +52,12 @@ namespace Pacman_Game.Models
                 _stateTimer = 0;
             }
 
-            if (State == GhostState.Frightened)
+            if (State == GhostState.Frightened || State == GhostState.FlashingFrightened)
             {
+                _stateTimer++;
                 if (_stateTimer >= 100) { State = GhostState.Chase; _stateTimer = 0; }
-                else if (_stateTimer >= 80) _isFrightenedEnding = !_isFrightenedEnding;
+                else if (_stateTimer >= 80 && State == GhostState.Frightened)
+                    State = GhostState.FlashingFrightened;
             }
             else if (State == GhostState.Scatter || State == GhostState.Chase)
             {
@@ -75,15 +72,25 @@ namespace Pacman_Game.Models
                     State = GhostState.Scatter;
                     _stateTimer = 0;
                     _scatterCount++;
-                    if (_scatterCount >= MAX_SCATTER_CYCLES) State = GhostState.Chase;
+                    if (_scatterCount >= MaxScatterCycles) State = GhostState.Chase;
                 }
             }
         }
 
-        private int GetScatterDuration() => _scatterCount switch { 0 => 70, 1 => 70, 2 => 50, 3 => 50, _ => 1 };
-        private int GetChaseDuration() => _scatterCount switch { 0 => 200, 1 => 200, 2 => 1000, 3 => 1000, _ => 10000 };
+        private int GetScatterDuration() => _scatterCount switch
+        {
+            0 or 1 => 70,
+            2 or 3 => 50,
+            _ => 1
+        };
 
-        // Decide el movimiento según el estado
+        private int GetChaseDuration() => _scatterCount switch
+        {
+            0 or 1 => 200,
+            2 or 3 => 1000,
+            _ => 10000
+        };
+
         public void ChasePacman(Pacman pacman, Map map)
         {
             UpdateState();
@@ -93,40 +100,83 @@ namespace Pacman_Game.Models
                     if (_dotsEatenGlobal >= _dotsRequiredToLeave)
                     {
                         MoveTowardsTarget(HouseExit.X, HouseExit.Y, map);
-                        if (Math.Abs(X - HouseExit.X) < 0.1 && Math.Abs(Y - HouseExit.Y) < 0.1)
+                        if (Math.Abs(X - HouseExit.X) < 0.5 && Math.Abs(Y - HouseExit.Y) < 0.5)
                         {
                             State = GhostState.Scatter;
                             _stateTimer = 0;
+                            X = HouseExit.X;
+                            Y = HouseExit.Y;
                         }
                     }
                     break;
                 case GhostState.Chase:
-                    var target = GetTargetPosition(pacman);
-                    MoveTowardsTarget(target.X, target.Y, map);
+                    var chase = GetTargetPosition(pacman);
+                    MoveTowardsTarget(chase.X, chase.Y, map);
                     break;
                 case GhostState.Scatter:
                     var corner = GetScatterCorner(map);
                     MoveTowardsTarget(corner.X, corner.Y, map);
                     break;
                 case GhostState.Frightened:
+                case GhostState.FlashingFrightened:
                     MoveRandomly(map, pacman);
                     break;
                 case GhostState.Eaten:
                     MoveTowardsTarget(SpawnPoint.X, SpawnPoint.Y, map);
-                    if (Math.Abs(X - SpawnPoint.X) < 0.1 && Math.Abs(Y - SpawnPoint.Y) < 0.1)
+                    double dist = Math.Sqrt(Math.Pow(X - SpawnPoint.X, 2) + Math.Pow(Y - SpawnPoint.Y, 2));
+                    if (dist < 0.5)
+                    {
+                        X = SpawnPoint.X;
+                        Y = SpawnPoint.Y;
                         State = GhostState.LeavingHouse;
+                        _stateTimer = 0;
+                        ReturnedHome?.Invoke(this, EventArgs.Empty);
+                    }
                     break;
             }
         }
 
         protected abstract (double X, double Y) GetTargetPosition(Pacman pacman);
 
-        // Devuelve la esquina de scatter según color
         protected virtual (double X, double Y) GetScatterCorner(Map? map) =>
-            map == null ? Color switch { GhostColor.Red => (27, 0), GhostColor.Pink => (0, 0), GhostColor.Blue => (27, 30), GhostColor.Orange => (0, 30), _ => (0, 0) }
-                        : Color switch { GhostColor.Red => (map.Width - 1, 0), GhostColor.Pink => (0, 0), GhostColor.Blue => (map.Width - 1, map.Height - 1), GhostColor.Orange => (0, map.Height - 1), _ => (0, 0) };
+            map == null
+                ? Color switch
+                {
+                    GhostColor.Red => (27, 0),
+                    GhostColor.Pink => (0, 0),
+                    GhostColor.Blue => (27, 30),
+                    GhostColor.Orange => (0, 30),
+                    _ => (0, 0)
+                }
+                : Color switch
+                {
+                    GhostColor.Red => (map.Width - 1, 0),
+                    GhostColor.Pink => (0, 0),
+                    GhostColor.Blue => (map.Width - 1, map.Height - 1),
+                    GhostColor.Orange => (0, map.Height - 1),
+                    _ => (0, 0)
+                };
 
-        // Movimiento hacia un objetivo calculando la mejor dirección
+        public void Reset()
+        {
+            X = SpawnPoint.X;
+            Y = SpawnPoint.Y;
+            State = GhostState.LeavingHouse;
+            CurrentDirection = Direction.Left;
+            _stateTimer = 0;
+            _scatterCount = 0;
+            IsInTunnel = false;
+        }
+
+        public void SetFrightened()
+        {
+            if (State != GhostState.Eaten && State != GhostState.LeavingHouse)
+            {
+                State = GhostState.Frightened;
+                _stateTimer = 0;
+            }
+        }
+
         private void MoveTowardsTarget(double targetX, double targetY, Map map)
         {
             var directions = GetPossibleDirections(map);
@@ -140,8 +190,16 @@ namespace Pacman_Game.Models
             {
                 var (newX, newY) = CalculateNewPosition(dir);
                 double distance = Math.Sqrt(Math.Pow(newX - targetX, 2) + Math.Pow(newY - targetY, 2));
-                if (dir == CurrentDirection) { canContinueCurrent = true; if (distance < minDistance) { minDistance = distance; bestDirection = dir; } }
-                else if (distance < minDistance) { minDistance = distance; bestDirection = dir; }
+                if (dir == CurrentDirection)
+                {
+                    canContinueCurrent = true;
+                    if (distance < minDistance) { minDistance = distance; bestDirection = dir; }
+                }
+                else if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    bestDirection = dir;
+                }
             }
 
             if (!canContinueCurrent && directions.Contains(OppositeDirection(CurrentDirection)))
@@ -162,27 +220,29 @@ namespace Pacman_Game.Models
             MoveInDirection(bestDirection, map);
         }
 
-        // Retorna direcciones válidas según posición y estado
         private List<Direction> GetPossibleDirections(Map map)
         {
-            var directions = new List<Direction>();
+            List<Direction> directions = [];
             foreach (Direction dir in Enum.GetValues(typeof(Direction)))
             {
-                if (dir == OppositeDirection(CurrentDirection) && State != GhostState.Frightened && State != GhostState.Eaten)
+                if (dir == OppositeDirection(CurrentDirection) &&
+                    State != GhostState.Frightened &&
+                    State != GhostState.FlashingFrightened &&
+                    State != GhostState.Eaten)
                     continue;
 
                 var (newX, newY) = CalculateNewPosition(dir);
-                int intX = (int)Math.Round(newX);
-                int intY = (int)Math.Round(newY);
-
-                if (IsValidMove(intX, intY, map) || IsInTunnel) directions.Add(dir);
+                int ix = (int)Math.Round(newX);
+                int iy = (int)Math.Round(newY);
+                if (GhostIsValidMove(ix, iy, map) || IsInTunnel)
+                    directions.Add(dir);
             }
-
-            if (directions.Count == 0) directions.Add(OppositeDirection(CurrentDirection));
+            if (directions.Count == 0)
+                directions.Add(OppositeDirection(CurrentDirection));
             return directions;
         }
 
-        private Direction OppositeDirection(Direction dir) => dir switch
+        private static Direction OppositeDirection(Direction dir) => dir switch
         {
             Direction.Up => Direction.Down,
             Direction.Down => Direction.Up,
@@ -191,29 +251,26 @@ namespace Pacman_Game.Models
             _ => Direction.Up
         };
 
-        // Movimiento aleatorio (estado Frightened)
         private void MoveRandomly(Map map, Pacman pacman)
         {
             var validDirections = GetPossibleDirections(map);
             if (validDirections.Count == 0) return;
 
-            if (State == GhostState.Frightened && !_isFrightenedEnding)
+            if (State == GhostState.Frightened)
             {
-                var directionsByDistance = new List<(Direction dir, double distance)>();
+                List<(Direction dir, double distance)> byDistance = [];
                 foreach (var dir in validDirections)
                 {
-                    var (newX, newY) = CalculateNewPosition(dir);
-                    double distance = Math.Sqrt(Math.Pow(newX - pacman.X, 2) + Math.Pow(newY - pacman.Y, 2));
-                    directionsByDistance.Add((dir, distance));
+                    var (nx, ny) = CalculateNewPosition(dir);
+                    double d = Math.Sqrt(Math.Pow(nx - pacman.X, 2) + Math.Pow(ny - pacman.Y, 2));
+                    byDistance.Add((dir, d));
                 }
-                directionsByDistance.Sort((a, b) => b.distance.CompareTo(a.distance));
-                int index = random.Next(Math.Min(2, directionsByDistance.Count));
-                MoveInDirection(directionsByDistance[index].dir, map);
+                byDistance.Sort((a, b) => b.distance.CompareTo(a.distance));
+                MoveInDirection(byDistance[_random.Next(Math.Min(2, byDistance.Count))].dir, map);
             }
             else
             {
-                int index = random.Next(validDirections.Count);
-                MoveInDirection(validDirections[index], map);
+                MoveInDirection(validDirections[_random.Next(validDirections.Count)], map);
             }
         }
 
@@ -221,7 +278,8 @@ namespace Pacman_Game.Models
         {
             IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
             CurrentDirection = direction;
-            double tolerance = 0.3;
+
+            const double tolerance = 0.3;
             bool nearCenterX = Math.Abs(X - Math.Round(X)) < tolerance;
             bool nearCenterY = Math.Abs(Y - Math.Round(Y)) < tolerance;
 
@@ -229,10 +287,12 @@ namespace Pacman_Game.Models
             int intNextX = (int)Math.Round(nextX);
             int intNextY = (int)Math.Round(nextY);
 
-            if ((nearCenterX || nearCenterY) && (CurrentDirection == Direction.Left || CurrentDirection == Direction.Right) &&
+            if ((nearCenterX || nearCenterY) &&
+                (CurrentDirection == Direction.Left || CurrentDirection == Direction.Right) &&
                 (NextDirection == Direction.Up || NextDirection == Direction.Down))
             {
-                if (IsValidMove(intNextX, (int)Math.Round(Y), map) && IsValidMove((int)Math.Round(X), intNextY, map))
+                if (GhostIsValidMove(intNextX, (int)Math.Round(Y), map) &&
+                    GhostIsValidMove((int)Math.Round(X), intNextY, map))
                 {
                     X = nextX;
                     Y = CalculateNewPosition(NextDirection).Item2;
@@ -241,7 +301,7 @@ namespace Pacman_Game.Models
                 }
             }
 
-            if (IsValidMove(intNextX, intNextY, map) || IsInTunnel)
+            if (GhostIsValidMove(intNextX, intNextY, map) || IsInTunnel)
             {
                 X = nextX;
                 Y = nextY;
@@ -253,81 +313,65 @@ namespace Pacman_Game.Models
             }
             else
             {
-                var directions = GetPossibleDirections(map);
-                if (directions.Count > 0)
+                var dirs = GetPossibleDirections(map);
+                if (dirs.Count > 0)
                 {
-                    Direction bestDir = directions[0];
-                    double minDistance = double.MaxValue;
-                    foreach (var dir in directions)
+                    Direction bestDir = dirs[0];
+                    double minDist = double.MaxValue;
+                    foreach (var dir in dirs)
                     {
-                        var (testX, testY) = CalculateNewPosition(dir);
-                        double distance = Math.Sqrt(Math.Pow(testX - nextX, 2) + Math.Pow(testY - nextY, 2));
-                        if (distance < minDistance) { minDistance = distance; bestDir = dir; }
+                        var (tx, ty) = CalculateNewPosition(dir);
+                        double d = Math.Sqrt(Math.Pow(tx - nextX, 2) + Math.Pow(ty - nextY, 2));
+                        if (d < minDist) { minDist = d; bestDir = dir; }
                     }
                     CurrentDirection = bestDir;
-                    var (finalX, finalY) = CalculateNewPosition(bestDir);
-                    if (IsValidMove((int)Math.Round(finalX), (int)Math.Round(finalY), map) || IsInTunnel)
+                    var (fx, fy) = CalculateNewPosition(bestDir);
+                    if (GhostIsValidMove((int)Math.Round(fx), (int)Math.Round(fy), map) || IsInTunnel)
                     {
-                        X = finalX;
-                        Y = finalY;
-                        if (IsInTunnel) { if (X < 0) X = map.Width - 1; if (X >= map.Width) X = 0; }
+                        X = fx;
+                        Y = fy;
+                        if (IsInTunnel)
+                        {
+                            if (X < 0) X = map.Width - 1;
+                            if (X >= map.Width) X = 0;
+                        }
                     }
                 }
             }
         }
 
         private (double, double) CalculateNewPosition(Direction direction)
+            => CalculateNewPosition(direction, GetCurrentSpeed());
+
+        private static bool GhostIsValidMove(int x, int y, Map map)
         {
-            return CalculateNewPosition(direction, GetCurrentSpeed());
-        }
-        private new bool IsValidMove(int x, int y, Map map)
-        {
-            if ((y >= 13 && y <= 14) && (x < 0 || x >= map.Width)) return true;
+            if (y >= 13 && y <= 14 && (x < 0 || x >= map.Width)) return true;
             if (x < 0 || y < 0 || y >= map.Height || x >= map.Width) return false;
             return !map.IsBlocking(x, y);
-        }
-
-        // Cambia el estado a Frightened
-        public void SetFrightened()
-        {
-            if (State != GhostState.Eaten)
-            {
-                State = GhostState.Frightened;
-                _stateTimer = 0;
-                _isFrightenedEnding = false;
-            }
-        }
-
-        // Resetea el fantasma a su posición inicial
-        public void Reset()
-        {
-            X = SpawnPoint.X;
-            Y = SpawnPoint.Y;
-            State = GhostState.LeavingHouse;
-            CurrentDirection = Direction.Left;
-            _stateTimer = 0;
-            _scatterCount = 0;
         }
     }
 
     public class Blinky : Ghost
     {
-        public Blinky(double x, double y) : base(GhostColor.Red, x, y, 0) => SpawnPoint = (14, 14);
-        protected override (double X, double Y) GetTargetPosition(Pacman pacman) => (pacman.X, pacman.Y);
+        public Blinky(double x, double y) : base(GhostColor.Red, x, y, 0)
+            => SpawnPoint = ((int)x, (int)y);
+        protected override (double X, double Y) GetTargetPosition(Pacman pacman)
+            => (pacman.X, pacman.Y);
     }
 
     public class Pinky : Ghost
     {
-        public Pinky(double x, double y) : base(GhostColor.Pink, x, y, 0) => SpawnPoint = (14, 14);
+        public Pinky(double x, double y) : base(GhostColor.Pink, x, y, 7)
+            => SpawnPoint = ((int)x, (int)y);
         protected override (double X, double Y) GetTargetPosition(Pacman pacman)
         {
-            int f = 4, s = 4;
+            const int offset = 4;
             return pacman.CurrentDirection switch
             {
-                Direction.Left => (pacman.X - f, pacman.Y - s),
-                Direction.Right => (pacman.X + f, pacman.Y - s),
-                Direction.Up => (pacman.X - s, pacman.Y - f),
-                Direction.Down => (pacman.X + s, pacman.Y + f),
+                Direction.Left => (pacman.X - offset, pacman.Y - offset),
+                Direction.Right => (pacman.X + offset, pacman.Y - offset),
+                Direction.Up => (pacman.X - offset, pacman.Y - offset),
+                Direction.Down => (pacman.X + offset, pacman.Y + offset),
                 _ => (pacman.X, pacman.Y)
             };
         }
@@ -335,16 +379,15 @@ namespace Pacman_Game.Models
 
     public class Inky : Ghost
     {
-        private Blinky blinky;
+        private readonly Blinky _blinky;
         public Inky(double x, double y, Blinky blinky) : base(GhostColor.Blue, x, y, 30)
         {
-            this.blinky = blinky;
-            SpawnPoint = (14, 14);
+            _blinky = blinky;
+            SpawnPoint = ((int)x, (int)y);
         }
-
         protected override (double X, double Y) GetTargetPosition(Pacman pacman)
         {
-            var (blX, blY) = (blinky.X, blinky.Y);
+            var (blX, blY) = (_blinky.X, _blinky.Y);
             var (pX, pY) = pacman.CurrentDirection switch
             {
                 Direction.Left => (pacman.X - 2, pacman.Y),
@@ -353,22 +396,29 @@ namespace Pacman_Game.Models
                 Direction.Down => (pacman.X, pacman.Y + 2),
                 _ => (pacman.X, pacman.Y)
             };
-            double tX = blX + 2 * (pX - blX), tY = blY + 2 * (pY - blY);
+            double tX = blX + 2 * (pX - blX);
+            double tY = blY + 2 * (pY - blY);
             double d = Math.Sqrt(Math.Pow(tX - pacman.X, 2) + Math.Pow(tY - pacman.Y, 2));
-            if (d > 16) { double r = 16 / d; tX = pacman.X + (tX - pacman.X) * r; tY = pacman.Y + (tY - pacman.Y) * r; }
+            if (d > 16)
+            {
+                double r = 16 / d;
+                tX = pacman.X + (tX - pacman.X) * r;
+                tY = pacman.Y + (tY - pacman.Y) * r;
+            }
             return (tX, tY);
         }
     }
 
     public class Clyde : Ghost
     {
-        public Clyde(double x, double y) : base(GhostColor.Orange, x, y, 60) => SpawnPoint = (14, 14);
+        public Clyde(double x, double y) : base(GhostColor.Orange, x, y, 60)
+            => SpawnPoint = ((int)x, (int)y);
         protected override (double X, double Y) GetTargetPosition(Pacman pacman)
         {
             double distance = Math.Sqrt(Math.Pow(X - pacman.X, 2) + Math.Pow(Y - pacman.Y, 2));
             if (distance < 8) return (pacman.X, pacman.Y);
             var corner = GetScatterCorner(null);
-            double pull = 0.3;
+            const double pull = 0.3;
             return (corner.X * (1 - pull) + pacman.X * pull, corner.Y * (1 - pull) + pacman.Y * pull);
         }
     }

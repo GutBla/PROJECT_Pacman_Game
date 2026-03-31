@@ -14,14 +14,9 @@ namespace Pacman_Game.Views
 #endif
         }
 
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-        }
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
         private void BackButton_Click(object sender, Avalonia.Interactivity.RoutedEventArgs e)
-        {
-            this.Close();
-        }
+            => this.Close();
     }
 }

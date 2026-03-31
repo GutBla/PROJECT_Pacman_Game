@@ -4,7 +4,6 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.ReactiveUI;
 using Pacman_Game.ViewModels;
-using ReactiveUI;
 
 namespace Pacman_Game.Views
 {
@@ -20,40 +19,27 @@ namespace Pacman_Game.Views
             DataContext = ViewModel;
         }
 
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-        }
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
         private void ApplyButton_Click(object sender, RoutedEventArgs e)
         {
-            Config.InitialLives = ViewModel!.LivesCount;
-            Config.GameSpeed = ViewModel!.GameSpeed;
+            if (ViewModel == null) return;
+            Config.InitialLives = ViewModel.LivesCount;
+            Config.GameSpeed = ViewModel.GameSpeed;
             Config.SaveConfig();
-
-            var dialog = new MessageDialog("Configuración aplicada correctamente");
-            dialog.ShowDialog(this);
+            new MessageDialog("Configuración aplicada correctamente.").ShowDialog(this);
         }
 
         private void IncreaseLivesClick(object sender, RoutedEventArgs e)
         {
-            if (ViewModel != null && ViewModel.LivesCount < 50)
-            {
-                ViewModel.LivesCount++;
-            }
+            if (ViewModel?.LivesCount < 50) ViewModel!.LivesCount++;
         }
 
         private void DecreaseLivesClick(object sender, RoutedEventArgs e)
         {
-            if (ViewModel != null && ViewModel.LivesCount > 1)
-            {
-                ViewModel.LivesCount--;
-            }
+            if (ViewModel?.LivesCount > 1) ViewModel!.LivesCount--;
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+        private void BackButton_Click(object sender, RoutedEventArgs e) => this.Close();
     }
 }

@@ -1,4 +1,7 @@
-﻿using Avalonia;
+﻿// File: SpriteManager.cs
+// Path: Pacman_Game\Pacman_Game\Managers\SpriteManager.cs
+//---------------------------------------
+using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -12,7 +15,6 @@ namespace Pacman_Game.Managers
 {
     public sealed class SpriteManager
     {
-        // Singleton: Instancia única de SpriteManager.
         private static readonly Lazy<SpriteManager> _instance = new(() => new SpriteManager());
         public static SpriteManager Instance => _instance.Value;
 
@@ -33,7 +35,6 @@ namespace Pacman_Game.Managers
             PacmanDeathSprites = new[] { fallbackTexture };
             DotSprite = fallbackTexture;
             PowerPelletSprite = fallbackTexture;
-
             LoadAllSprites();
         }
 
@@ -76,10 +77,7 @@ namespace Pacman_Game.Managers
                 }
 
                 System.Runtime.InteropServices.Marshal.Copy(
-                    pixelData,
-                    0,
-                    lockedBuffer.Address,
-                    pixelData.Length);
+                    pixelData, 0, lockedBuffer.Address, pixelData.Length);
             }
 
             return writableBitmap;
@@ -89,13 +87,13 @@ namespace Pacman_Game.Managers
         {
             try
             {
-                // Sprites de ojos de fantasmas
+                // CORRECCIÓN: Rutas completas con Assets
                 GhostEyesSprites[Direction.Right] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_right.png");
                 GhostEyesSprites[Direction.Left] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_left.png");
                 GhostEyesSprites[Direction.Up] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_up.png");
                 GhostEyesSprites[Direction.Down] = LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_eyes/eyes_down.png");
 
-                //  Sprites de Pacman
+                // Pac-Man sprites
                 PacmanSprites[Direction.Right] = new[]
                 {
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_right_1.png"),
@@ -124,7 +122,7 @@ namespace Pacman_Game.Managers
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_closed.png")
                 };
 
-                //  Sprites de Pacman Muerte
+                // Pac-Man death animation
                 PacmanDeathSprites = new Bitmap[]
                 {
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_death_1.png"),
@@ -140,9 +138,11 @@ namespace Pacman_Game.Managers
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_death_11.png")
                 };
 
+                // Dots and pellets
                 DotSprite = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/pacdot.png");
                 PowerPelletSprite = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/powerpellet.png");
 
+                // Fruits
                 FruitSprites["apple"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/apple.png");
                 FruitSprites["cherry"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/cherry.png");
                 FruitSprites["strawberry"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/strawberry.png");
@@ -152,36 +152,30 @@ namespace Pacman_Game.Managers
                 FruitSprites["bell"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/bell.png");
                 FruitSprites["key"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/key.png");
 
-                // Tiles Textural del laberinto
+                // Tilesets (walls, corners, paths)
                 LoadTexture("path", "tilesets/sprite_path");
-
                 LoadTexture("TL1", "tilesets/corner_top_left/corner_top_left_01");
                 LoadTexture("TL2", "tilesets/corner_top_left/corner_top_left_02");
                 LoadTexture("TL3", "tilesets/corner_top_left/corner_top_left_03");
                 LoadTexture("TL4", "tilesets/corner_top_left/corner_top_left_04");
                 LoadTexture("TL5", "tilesets/corner_top_left/corner_top_left_05");
-
                 LoadTexture("TR1", "tilesets/corner_top_right/corner_top_right_01");
                 LoadTexture("TR2", "tilesets/corner_top_right/corner_top_right_02");
                 LoadTexture("TR3", "tilesets/corner_top_right/corner_top_right_03");
                 LoadTexture("TR4", "tilesets/corner_top_right/corner_top_right_04");
                 LoadTexture("TR5", "tilesets/corner_top_right/corner_top_right_05");
-
                 LoadTexture("BL1", "tilesets/corner_bottom_left/corner_bottom_left_01");
                 LoadTexture("BL2", "tilesets/corner_bottom_left/corner_bottom_left_02");
                 LoadTexture("BL3", "tilesets/corner_bottom_left/corner_bottom_left_03");
-
                 LoadTexture("BR1", "tilesets/corner_bottom_right/corner_bottom_right_01");
                 LoadTexture("BR2", "tilesets/corner_bottom_right/corner_bottom_right_02");
                 LoadTexture("BR3", "tilesets/corner_bottom_right/corner_bottom_right_03");
-
                 LoadTexture("H1", "tilesets/wall_horizontal/wall_horizontal_01");
                 LoadTexture("H2", "tilesets/wall_horizontal/wall_horizontal_02");
-
                 LoadTexture("V1", "tilesets/wall_vertical/wall_vertical_01");
                 LoadTexture("V2", "tilesets/wall_vertical/wall_vertical_02");
 
-                // Fantasmas
+                // Ghost sprites
                 LoadGhostSprites(GhostColor.Red, "blinky");
                 LoadGhostSprites(GhostColor.Pink, "pinky");
                 LoadGhostSprites(GhostColor.Blue, "inky");
@@ -193,9 +187,9 @@ namespace Pacman_Game.Managers
             }
         }
 
-        // LoadTexture: Carga y asigna un tile al diccionario TextureMap con código.
         private void LoadTexture(string code, string textureName)
         {
+            // CORRECCIÓN: Ruta completa con Assets
             var bitmap = LoadBitmap($"avares://Pacman_Game/Assets/{textureName}.png");
             if (bitmap != null)
             {
@@ -208,41 +202,44 @@ namespace Pacman_Game.Managers
             }
         }
 
-        // LoadGhostSprites: Carga sprites de fantasmas por color, estado y dirección.
         private void LoadGhostSprites(GhostColor color, string ghostName)
         {
             Dictionary<GhostState, Bitmap[]> states = new();
             Dictionary<Direction, Bitmap[]> normalSprites = new();
 
-            // Sprites normales por dirección
             foreach (Direction dir in Enum.GetValues(typeof(Direction)))
             {
                 string dirName = dir.ToString().ToLower();
+
+                // CORRECCIÓN: Rutas completas con Assets
                 Bitmap[] frames = new[]
                 {
                     LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_{dirName}_1.png"),
                     LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_{dirName}_2.png")
                 };
-                normalSprites[dir] = frames;
 
-                // Spritest Normal
+                normalSprites[dir] = frames;
                 GhostNormalSprites[(color, dir)] = frames;
             }
 
             states[GhostState.Chase] = normalSprites.Values.SelectMany(x => x).ToArray();
             states[GhostState.Scatter] = normalSprites.Values.SelectMany(x => x).ToArray();
 
-            // Sprites asustados
+            // Scared sprites
             Bitmap[] frightenedSprites = new[]
             {
                 LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_1.png"),
-                LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_2.png"),
+                LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_2.png")
+            };
+
+            Bitmap[] flashingSprites = new[]
+            {
                 LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_blink_1.png"),
                 LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_blink_2.png")
             };
-            states[GhostState.Frightened] = frightenedSprites;
 
-            // Sprites Eaten usar los ojos
+            states[GhostState.Frightened] = frightenedSprites;
+            states[GhostState.FlashingFrightened] = flashingSprites;
             states[GhostState.Eaten] = GhostEyesSprites.Values.ToArray();
 
             GhostSprites[color] = states;
