@@ -18,12 +18,10 @@ namespace Pacman_Game.Controls
         private DispatcherTimer? _animationTimer;
         private readonly int[] _pingPong = [0, 1, 2, 1];
         private int _seqIndex;
-
         private RenderTargetBitmap? _cachedBackground;
         private bool _backgroundDirty = true;
         private readonly Dictionary<string, Bitmap?> _textureCache = [];
         private bool _textureCacheInitialized;
-
         private const int CellSize = 20;
         private static readonly SolidColorBrush BackgroundBrush = new(Color.FromRgb(0, 0, 0));
 
@@ -70,22 +68,17 @@ namespace Pacman_Game.Controls
         private void InitializeTextureCache()
         {
             if (_textureCacheInitialized) return;
-
             var spriteManager = SpriteManager.Instance;
-
             foreach (var kvp in spriteManager.TextureMap)
                 _textureCache[kvp.Key] = kvp.Value;
-
             _textureCache["dot"] = spriteManager.DotSprite;
             _textureCache["powerPellet"] = spriteManager.PowerPelletSprite;
-
             _textureCacheInitialized = true;
         }
 
         public override void Render(DrawingContext context)
         {
             base.Render(context);
-
             if (_viewModel?.GameMap == null) return;
 
             InitializeTextureCache();
@@ -107,7 +100,6 @@ namespace Pacman_Game.Controls
         private void RenderBackgroundToCache()
         {
             if (_viewModel == null) return;
-
             int width = (int)Bounds.Width;
             int height = (int)Bounds.Height;
             if (width <= 0 || height <= 0) return;
@@ -122,7 +114,6 @@ namespace Pacman_Game.Controls
         private void DrawTextureMap(DrawingContext context, GameViewModel viewModel)
         {
             var map = viewModel.GameMap!;
-
             for (int y = 0; y < map.Height; y++)
             {
                 for (int x = 0; x < map.Width; x++)
@@ -130,7 +121,6 @@ namespace Pacman_Game.Controls
                     var textureKey = map.GetTextureKey(x, y);
                     bool isPath = string.IsNullOrEmpty(textureKey) || textureKey == "0";
                     var rect = new Rect(x * CellSize, y * CellSize, CellSize, CellSize);
-
                     if (isPath)
                     {
                         if (_textureCache.TryGetValue("path", out var pathTex) && pathTex != null)
@@ -141,12 +131,10 @@ namespace Pacman_Game.Controls
                     {
                         context.DrawImage(tex, rect);
                     }
-#if DEBUG
                     else if (!isPath)
                     {
                         context.FillRectangle(new SolidColorBrush(Colors.Magenta), rect);
                     }
-#endif
                 }
             }
         }
@@ -168,25 +156,24 @@ namespace Pacman_Game.Controls
 
                     Bitmap? sprite;
                     Rect rect;
-
                     switch (element)
                     {
                         case "PD":
                             sprite = _textureCache.GetValueOrDefault("dot");
                             rect = new Rect(x * CellSize + CellSize / 2 - 4,
-                                            y * CellSize + CellSize / 2 - 4, 8, 8);
+                                y * CellSize + CellSize / 2 - 4, 8, 8);
                             break;
                         case "PP":
                             sprite = _textureCache.GetValueOrDefault("powerPellet");
                             rect = new Rect(x * CellSize + CellSize / 2 - 8,
-                                            y * CellSize + CellSize / 2 - 8, 16, 16);
+                                y * CellSize + CellSize / 2 - 8, 16, 16);
                             break;
                         default:
                             if (spriteManager.FruitSprites.TryGetValue(element, out var fruitSprite))
                             {
                                 sprite = fruitSprite;
                                 rect = new Rect(x * CellSize + CellSize / 2 - 8,
-                                                y * CellSize + CellSize / 2 - 8, 16, 16);
+                                    y * CellSize + CellSize / 2 - 8, 16, 16);
                             }
                             else continue;
                             break;
@@ -224,41 +211,74 @@ namespace Pacman_Game.Controls
 
         private void DrawGhosts(DrawingContext context, GameViewModel viewModel)
         {
-            var ghosts = viewModel.Ghosts;
-            if (ghosts == null) return;
-
             var spriteManager = SpriteManager.Instance;
 
-            foreach (var ghost in ghosts)
+            foreach (var ghost in viewModel.Ghosts)
             {
-                if (ghost == null) continue;
+                var rect = new Rect(
+                    ghost.X * CellSize,
+                    ghost.Y * CellSize,
+                    CellSize,
+                    CellSize
+                );
 
-                var rect = new Rect(ghost.X * CellSize, ghost.Y * CellSize, CellSize, CellSize);
-                Bitmap? frame = null;
+                Bitmap[]? sprites = null;
 
-                if (!spriteManager.GhostSprites.TryGetValue(ghost.Color, out var states))
-                    continue;
-
-                if (ghost.State == GhostState.Eaten)
+                switch (ghost.State)
                 {
-                    spriteManager.GhostEyesSprites.TryGetValue(ghost.CurrentDirection, out frame);
+                    case GhostState.GoingHome:
+                    case GhostState.Eaten:
+                        if (spriteManager.GhostEyesSprites.TryGetValue(ghost.CurrentDirection, out var eyeSprite))
+                        {
+                            context.DrawImage(eyeSprite, rect);
+                        }
+                        continue;
+
+                    case GhostState.Frightened:
+                        if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out var ghostStates) &&
+                            ghostStates.TryGetValue(GhostState.Frightened, out var frightenedSprites))
+                        {
+                            sprites = frightenedSprites;
+                        }
+                        break;
+
+                    case GhostState.FlashingFrightened:
+                        if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out var flashStates) &&
+                            flashStates.TryGetValue(GhostState.FlashingFrightened, out var flashSprites))
+                        {
+                            sprites = flashSprites;
+                        }
+                        break;
+
+                    case GhostState.PacingHome:
+                    case GhostState.LeavingHome:
+                    case GhostState.EnteringHome:
+                    case GhostState.Outside:
+                        if (spriteManager.GhostNormalSprites.TryGetValue(
+                                (ghost.Color, ghost.CurrentDirection), out var normalSprites))
+                        {
+                            sprites = normalSprites;
+                        }
+                        break;
                 }
-                else if (ghost.State == GhostState.Frightened || ghost.State == GhostState.FlashingFrightened)
+
+                if (sprites != null && sprites.Length > 0)
                 {
-                    if (states.TryGetValue(ghost.State, out var scaredFrames) &&
-                        scaredFrames?.Length > 0)
-                        frame = scaredFrames[_pingPong[_seqIndex] % scaredFrames.Length];
+                    int frame = _seqIndex % sprites.Length;
+                    context.DrawImage(sprites[frame], rect);
                 }
                 else
                 {
-                    if (spriteManager.GhostNormalSprites.TryGetValue(
-                            (ghost.Color, ghost.CurrentDirection), out var normalFrames) &&
-                        normalFrames?.Length > 0)
-                        frame = normalFrames[_pingPong[_seqIndex] % normalFrames.Length];
+                    var fallbackColor = ghost.Color switch
+                    {
+                        GhostColor.Red => Colors.Red,
+                        GhostColor.Pink => Colors.Pink,
+                        GhostColor.Blue => Colors.Cyan,
+                        GhostColor.Orange => Colors.Orange,
+                        _ => Colors.White
+                    };
+                    context.FillRectangle(new SolidColorBrush(fallbackColor), rect);
                 }
-
-                if (frame != null)
-                    context.DrawImage(frame, rect);
             }
         }
 
@@ -271,7 +291,6 @@ namespace Pacman_Game.Controls
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
-
             if (_viewModel?.Pacman == null) return;
 
             switch (e.Key)

@@ -3,6 +3,7 @@ using System.Reactive;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Pacman_Game.Views;
+using Pacman_Game.Managers;
 
 namespace Pacman_Game.ViewModels
 {
@@ -23,6 +24,7 @@ namespace Pacman_Game.ViewModels
 
         private void StartGame()
         {
+            SoundManager.Instance.PlaySound("game_credit_sound");
             var gameWindow = new GameWindow();
             gameWindow.Show();
             CloseCurrentWindow();
@@ -33,7 +35,6 @@ namespace Pacman_Game.ViewModels
             var howToPlayWindow = new HowToPlayWindow();
             howToPlayWindow.Show();
         }
-
 
         private void HighScores()
         {

@@ -4,7 +4,18 @@ using System.Collections.Generic;
 namespace Pacman_Game.Models
 {
     public enum GhostColor { Red, Pink, Blue, Orange }
-    public enum GhostState { LeavingHouse, Scatter, Chase, Frightened, FlashingFrightened, Eaten }
+    public enum GhostState
+    {
+        PacingHome,
+        LeavingHome,
+        Outside,
+        Frightened,
+        FlashingFrightened,
+        Eaten,
+        GoingHome,
+        EnteringHome
+    }
+    public enum GhostMode { Chase, Scatter }
 
     public abstract class Ghost : Character
     {
@@ -12,15 +23,27 @@ namespace Pacman_Game.Models
         private int _stateTimer;
         private int _scatterCount;
         private const int MaxScatterCycles = 4;
+        private int _timeSinceLastDotEaten;
+        private const int MaxTimeWithoutProgress = 400;
+
         protected (int X, int Y) SpawnPoint;
         protected (int X, int Y) HouseExit = (14, 11);
+        protected (double X, double Y) HouseCenter = (14.0, 14.0);
+
         private readonly int _dotsRequiredToLeave;
         private static int _dotsEatenGlobal;
+        private static int _lastDotsEaten;
+        private bool _signalReverse;
+        private bool _signalLeaveHome;
+        private bool _pacingUp = true;
+        private const double PacingMinY = 12.0;
+        private const double PacingMaxY = 15.0;
 
         public event EventHandler? ReturnedHome;
 
         public GhostColor Color { get; }
-        public GhostState State { get; set; } = GhostState.LeavingHouse;
+        public GhostState State { get; set; } = GhostState.PacingHome;
+        public GhostMode Mode { get; set; } = GhostMode.Scatter;
         public virtual double SpeedFactor { get; } = 0.85;
         public bool IsInTunnel { get; set; }
 
@@ -30,50 +53,123 @@ namespace Pacman_Game.Models
             X = x;
             Y = y;
             Speed = 1;
-            CurrentDirection = Direction.Left;
+            CurrentDirection = Direction.Up;
             _dotsRequiredToLeave = dotsRequiredToLeave;
+            SpawnPoint = ((int)x, (int)y);
+            if (color == GhostColor.Red)
+            {
+                State = GhostState.Outside;
+                Mode = GhostMode.Scatter;
+            }
         }
 
-        public static void UpdateDotsEaten(int dotsEaten) => _dotsEatenGlobal = dotsEaten;
+        public static void UpdateDotsEaten(int dotsEaten)
+        {
+            if (dotsEaten > _lastDotsEaten)
+            {
+                _lastDotsEaten = dotsEaten;
+            }
+            _dotsEatenGlobal = dotsEaten;
+        }
 
-        public double GetCurrentSpeed()
+        // Velocidad por frame original (se usará para calcular velocidad por segundo)
+        public double GetFrameSpeed()
         {
             if (IsInTunnel) return 0.4;
-            if (State == GhostState.Eaten) return 2.5;
-            if (State == GhostState.Frightened || State == GhostState.FlashingFrightened) return 0.5;
-            return State == GhostState.Chase ? 0.85 : 0.75;
+            return State switch
+            {
+                GhostState.GoingHome => 2.5,
+                GhostState.Eaten => 2.5,
+                GhostState.Frightened or GhostState.FlashingFrightened => 0.5,
+                GhostState.PacingHome => 0.4,
+                GhostState.LeavingHome => 0.6,
+                GhostState.EnteringHome => 0.8,
+                GhostState.Outside => Mode == GhostMode.Chase ? 0.85 : 0.75,
+                _ => 0.75
+            };
+        }
+
+        // Velocidad por segundo según la configuración
+        private double GetSpeedPerSecond()
+        {
+            return GetFrameSpeed() * (1000.0 / Config.GameSpeed);
         }
 
         public void UpdateState()
         {
-            if (State == GhostState.LeavingHouse && _dotsEatenGlobal >= _dotsRequiredToLeave)
+            _stateTimer++;
+            _timeSinceLastDotEaten++;
+
+            if (_dotsEatenGlobal > _lastDotsEaten)
             {
-                State = GhostState.Scatter;
-                _stateTimer = 0;
+                _lastDotsEaten = _dotsEatenGlobal;
+                _timeSinceLastDotEaten = 0;
             }
 
-            if (State == GhostState.Frightened || State == GhostState.FlashingFrightened)
+            switch (State)
             {
-                _stateTimer++;
-                if (_stateTimer >= 100) { State = GhostState.Chase; _stateTimer = 0; }
-                else if (_stateTimer >= 80 && State == GhostState.Frightened)
-                    State = GhostState.FlashingFrightened;
+                case GhostState.PacingHome:
+                    HandlePacingHome();
+                    break;
+                case GhostState.LeavingHome:
+                    break;
+                case GhostState.Outside:
+                    HandleOutsideState();
+                    break;
+                case GhostState.Frightened:
+                case GhostState.FlashingFrightened:
+                    HandleFrightenedState();
+                    break;
             }
-            else if (State == GhostState.Scatter || State == GhostState.Chase)
+        }
+
+        private void HandlePacingHome()
+        {
+            bool canLeaveByDots = _dotsEatenGlobal >= _dotsRequiredToLeave;
+            bool canLeaveByTime = _timeSinceLastDotEaten >= MaxTimeWithoutProgress;
+            if (_signalLeaveHome || canLeaveByDots || canLeaveByTime)
             {
-                _stateTimer++;
-                if (State == GhostState.Scatter && _stateTimer >= GetScatterDuration())
+                State = GhostState.LeavingHome;
+                _stateTimer = 0;
+                _signalLeaveHome = false;
+            }
+        }
+
+        private void HandleOutsideState()
+        {
+            if (Mode == GhostMode.Scatter && _stateTimer >= GetScatterDuration())
+            {
+                Mode = GhostMode.Chase;
+                _stateTimer = 0;
+                _signalReverse = true;
+            }
+            else if (Mode == GhostMode.Chase && _stateTimer >= GetChaseDuration())
+            {
+                Mode = GhostMode.Scatter;
+                _stateTimer = 0;
+                _scatterCount++;
+                if (_scatterCount >= MaxScatterCycles)
                 {
-                    State = GhostState.Chase;
-                    _stateTimer = 0;
+                    Mode = GhostMode.Chase;
                 }
-                else if (State == GhostState.Chase && _stateTimer >= GetChaseDuration())
+                else
                 {
-                    State = GhostState.Scatter;
-                    _stateTimer = 0;
-                    _scatterCount++;
-                    if (_scatterCount >= MaxScatterCycles) State = GhostState.Chase;
+                    _signalReverse = true;
                 }
+            }
+        }
+
+        private void HandleFrightenedState()
+        {
+            if (_stateTimer >= 100)
+            {
+                State = GhostState.Outside;
+                Mode = GhostMode.Chase;
+                _stateTimer = 0;
+            }
+            else if (_stateTimer >= 80 && State == GhostState.Frightened)
+            {
+                State = GhostState.FlashingFrightened;
             }
         }
 
@@ -91,155 +187,269 @@ namespace Pacman_Game.Models
             _ => 10000
         };
 
-        public void ChasePacman(Pacman pacman, Map map)
+        public void ChasePacman(Pacman pacman, Map map, double deltaTime)
         {
             UpdateState();
+
+            double movement = GetSpeedPerSecond() * deltaTime;
+
             switch (State)
             {
-                case GhostState.LeavingHouse:
-                    if (_dotsEatenGlobal >= _dotsRequiredToLeave)
-                    {
-                        MoveTowardsTarget(HouseExit.X, HouseExit.Y, map);
-                        if (Math.Abs(X - HouseExit.X) < 0.5 && Math.Abs(Y - HouseExit.Y) < 0.5)
-                        {
-                            State = GhostState.Scatter;
-                            _stateTimer = 0;
-                            X = HouseExit.X;
-                            Y = HouseExit.Y;
-                        }
-                    }
+                case GhostState.PacingHome:
+                    MovePacingInHome(movement);
                     break;
-                case GhostState.Chase:
-                    var chase = GetTargetPosition(pacman);
-                    MoveTowardsTarget(chase.X, chase.Y, map);
+                case GhostState.LeavingHome:
+                    MoveLeaveHome(map, movement);
                     break;
-                case GhostState.Scatter:
-                    var corner = GetScatterCorner(map);
-                    MoveTowardsTarget(corner.X, corner.Y, map);
+                case GhostState.Outside:
+                    MoveOutside(pacman, map, movement);
                     break;
                 case GhostState.Frightened:
                 case GhostState.FlashingFrightened:
-                    MoveRandomly(map, pacman);
+                    MoveFrightened(map, pacman, movement);
                     break;
                 case GhostState.Eaten:
-                    MoveTowardsTarget(SpawnPoint.X, SpawnPoint.Y, map);
-                    double dist = Math.Sqrt(Math.Pow(X - SpawnPoint.X, 2) + Math.Pow(Y - SpawnPoint.Y, 2));
-                    if (dist < 0.5)
-                    {
-                        X = SpawnPoint.X;
-                        Y = SpawnPoint.Y;
-                        State = GhostState.LeavingHouse;
-                        _stateTimer = 0;
-                        ReturnedHome?.Invoke(this, EventArgs.Empty);
-                    }
+                    State = GhostState.GoingHome;
+                    _stateTimer = 0;
+                    break;
+                case GhostState.GoingHome:
+                    MoveGoingHome(map, movement);
+                    break;
+                case GhostState.EnteringHome:
+                    MoveEnteringHome(map, movement);
                     break;
             }
         }
 
-        protected abstract (double X, double Y) GetTargetPosition(Pacman pacman);
-
-        protected virtual (double X, double Y) GetScatterCorner(Map? map) =>
-            map == null
-                ? Color switch
-                {
-                    GhostColor.Red => (27, 0),
-                    GhostColor.Pink => (0, 0),
-                    GhostColor.Blue => (27, 30),
-                    GhostColor.Orange => (0, 30),
-                    _ => (0, 0)
-                }
-                : Color switch
-                {
-                    GhostColor.Red => (map.Width - 1, 0),
-                    GhostColor.Pink => (0, 0),
-                    GhostColor.Blue => (map.Width - 1, map.Height - 1),
-                    GhostColor.Orange => (0, map.Height - 1),
-                    _ => (0, 0)
-                };
-
-        public void Reset()
+        private void MovePacingInHome(double movement)
         {
-            X = SpawnPoint.X;
-            Y = SpawnPoint.Y;
-            State = GhostState.LeavingHouse;
-            CurrentDirection = Direction.Left;
-            _stateTimer = 0;
-            _scatterCount = 0;
-            IsInTunnel = false;
+            if (_pacingUp)
+            {
+                Y -= movement;
+                if (Y <= PacingMinY)
+                {
+                    Y = PacingMinY;
+                    _pacingUp = false;
+                }
+            }
+            else
+            {
+                Y += movement;
+                if (Y >= PacingMaxY)
+                {
+                    Y = PacingMaxY;
+                    _pacingUp = true;
+                }
+            }
+            CurrentDirection = _pacingUp ? Direction.Up : Direction.Down;
         }
 
-        public void SetFrightened()
+        private void MoveLeaveHome(Map map, double movement)
         {
-            if (State != GhostState.Eaten && State != GhostState.LeavingHouse)
+            double centerX = HouseExit.X;
+            double exitY = HouseExit.Y;
+            const double alignmentTolerance = 0.3;
+
+            if (Math.Abs(X - centerX) > alignmentTolerance)
             {
-                State = GhostState.Frightened;
+                if (X < centerX)
+                {
+                    X += movement;
+                    CurrentDirection = Direction.Right;
+                }
+                else
+                {
+                    X -= movement;
+                    CurrentDirection = Direction.Left;
+                }
+            }
+            else
+            {
+                X = centerX;
+                if (Y > exitY)
+                {
+                    Y -= movement;
+                    CurrentDirection = Direction.Up;
+                }
+                else
+                {
+                    Y = exitY;
+                    State = GhostState.Outside;
+                    Mode = GhostMode.Scatter;
+                    CurrentDirection = Direction.Left;
+                    _stateTimer = 0;
+                }
+            }
+        }
+
+        private void MoveOutside(Pacman pacman, Map map, double movement)
+        {
+            var (targetX, targetY) = Mode == GhostMode.Chase
+                ? GetTargetPosition(pacman)
+                : GetScatterCorner(map);
+
+            if (_signalReverse)
+            {
+                CurrentDirection = OppositeDirection(CurrentDirection);
+                _signalReverse = false;
+            }
+
+            MoveTowardsTarget(targetX, targetY, map, movement, ignoreReverseRule: false);
+        }
+
+        private void MoveFrightened(Map map, Pacman pacman, double movement)
+        {
+            var validDirections = GetPossibleDirections(map, allowReverse: true);
+            if (validDirections.Count == 0) return;
+
+            List<(Direction dir, double distance)> byDistance = [];
+            foreach (var dir in validDirections)
+            {
+                var (nx, ny) = CalculateNewPosition(dir, movement);
+                double d = Math.Sqrt(Math.Pow(nx - pacman.X, 2) + Math.Pow(ny - pacman.Y, 2));
+                byDistance.Add((dir, d));
+            }
+
+            byDistance.Sort((a, b) => b.distance.CompareTo(a.distance));
+            int choices = Math.Min(2, byDistance.Count);
+            Direction chosen = byDistance[_random.Next(choices)].dir;
+            MoveInDirection(chosen, map, movement);
+        }
+
+        private void MoveGoingHome(Map map, double movement)
+        {
+            double doorX = HouseExit.X;
+            double doorY = HouseExit.Y;
+            MoveTowardsTarget(doorX, doorY, map, movement, ignoreReverseRule: true);
+
+            double dist = Math.Sqrt(Math.Pow(X - doorX, 2) + Math.Pow(Y - doorY, 2));
+            if (dist < 0.5)
+            {
+                X = doorX;
+                Y = doorY;
+                State = GhostState.EnteringHome;
                 _stateTimer = 0;
             }
         }
 
-        private void MoveTowardsTarget(double targetX, double targetY, Map map)
+        private void MoveEnteringHome(Map map, double movement)
         {
-            var directions = GetPossibleDirections(map);
-            if (directions.Count == 1) { MoveInDirection(directions[0], map); return; }
+            if (Y < HouseCenter.Y - 0.3)
+            {
+                Y += movement;
+                CurrentDirection = Direction.Down;
+                return;
+            }
+
+            const double alignmentTolerance = 0.3;
+            if (Math.Abs(X - SpawnPoint.X) > alignmentTolerance)
+            {
+                if (X < SpawnPoint.X)
+                {
+                    X += movement;
+                    CurrentDirection = Direction.Right;
+                }
+                else
+                {
+                    X -= movement;
+                    CurrentDirection = Direction.Left;
+                }
+            }
+            else
+            {
+                X = SpawnPoint.X;
+                Y = SpawnPoint.Y;
+                State = GhostState.PacingHome;
+                CurrentDirection = Direction.Up;
+                _stateTimer = 0;
+                ReturnedHome?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        private void MoveTowardsTarget(double targetX, double targetY, Map map, double movement, bool ignoreReverseRule = false)
+        {
+            var directions = GetPossibleDirections(map, allowReverse: ignoreReverseRule);
+            if (directions.Count == 0) return;
+
+            if (directions.Count == 1)
+            {
+                MoveInDirection(directions[0], map, movement);
+                return;
+            }
 
             Direction bestDirection = CurrentDirection;
             double minDistance = double.MaxValue;
-            bool canContinueCurrent = false;
 
             foreach (var dir in directions)
             {
-                var (newX, newY) = CalculateNewPosition(dir);
+                var (newX, newY) = CalculateNewPosition(dir, movement);
                 double distance = Math.Sqrt(Math.Pow(newX - targetX, 2) + Math.Pow(newY - targetY, 2));
-                if (dir == CurrentDirection)
-                {
-                    canContinueCurrent = true;
-                    if (distance < minDistance) { minDistance = distance; bestDirection = dir; }
-                }
-                else if (distance < minDistance)
+                if (distance < minDistance)
                 {
                     minDistance = distance;
                     bestDirection = dir;
                 }
             }
 
-            if (!canContinueCurrent && directions.Contains(OppositeDirection(CurrentDirection)))
-            {
-                directions.Remove(OppositeDirection(CurrentDirection));
-                if (directions.Count > 0)
-                {
-                    bestDirection = directions[0];
-                    foreach (var dir in directions)
-                    {
-                        var (newX, newY) = CalculateNewPosition(dir);
-                        double distance = Math.Sqrt(Math.Pow(newX - targetX, 2) + Math.Pow(newY - targetY, 2));
-                        if (distance < minDistance) { minDistance = distance; bestDirection = dir; }
-                    }
-                }
-            }
-
-            MoveInDirection(bestDirection, map);
+            MoveInDirection(bestDirection, map, movement);
         }
 
-        private List<Direction> GetPossibleDirections(Map map)
+        private List<Direction> GetPossibleDirections(Map map, bool allowReverse = false)
         {
             List<Direction> directions = [];
+            Direction opposite = OppositeDirection(CurrentDirection);
+
             foreach (Direction dir in Enum.GetValues(typeof(Direction)))
             {
-                if (dir == OppositeDirection(CurrentDirection) &&
-                    State != GhostState.Frightened &&
-                    State != GhostState.FlashingFrightened &&
-                    State != GhostState.Eaten)
+                if (!allowReverse && dir == opposite)
                     continue;
 
-                var (newX, newY) = CalculateNewPosition(dir);
+                var (newX, newY) = CalculateNewPosition(dir, 0); // sin movimiento, solo para comprobar celda
                 int ix = (int)Math.Round(newX);
                 int iy = (int)Math.Round(newY);
+
                 if (GhostIsValidMove(ix, iy, map) || IsInTunnel)
                     directions.Add(dir);
             }
+
             if (directions.Count == 0)
-                directions.Add(OppositeDirection(CurrentDirection));
+                directions.Add(opposite);
+
             return directions;
+        }
+
+        private void MoveInDirection(Direction direction, Map map, double movement)
+        {
+            IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
+            CurrentDirection = direction;
+
+            var (nextX, nextY) = CalculateNewPosition(CurrentDirection, movement);
+            int intNextX = (int)Math.Round(nextX);
+            int intNextY = (int)Math.Round(nextY);
+
+            if (GhostIsValidMove(intNextX, intNextY, map) || IsInTunnel)
+            {
+                X = nextX;
+                Y = nextY;
+
+                if (IsInTunnel)
+                {
+                    if (X < 0) X = map.Width - 1;
+                    if (X >= map.Width) X = 0;
+                }
+            }
+        }
+
+        private (double, double) CalculateNewPosition(Direction direction, double movement)
+            => base.CalculateNewPosition(direction, movement);
+
+        private static bool GhostIsValidMove(int x, int y, Map map)
+        {
+            if (y >= 13 && y <= 14 && (x < 0 || x >= map.Width))
+                return true;
+            if (x < 0 || y < 0 || y >= map.Height || x >= map.Width)
+                return false;
+            return !map.IsBlocking(x, y);
         }
 
         private static Direction OppositeDirection(Direction dir) => dir switch
@@ -251,110 +461,80 @@ namespace Pacman_Game.Models
             _ => Direction.Up
         };
 
-        private void MoveRandomly(Map map, Pacman pacman)
+        public void Reset()
         {
-            var validDirections = GetPossibleDirections(map);
-            if (validDirections.Count == 0) return;
+            X = SpawnPoint.X;
+            Y = SpawnPoint.Y;
+            CurrentDirection = Direction.Up;
+            _stateTimer = 0;
+            _scatterCount = 0;
+            _timeSinceLastDotEaten = 0;
+            IsInTunnel = false;
+            _signalReverse = false;
+            _signalLeaveHome = false;
 
-            if (State == GhostState.Frightened)
+            if (Color == GhostColor.Red)
             {
-                List<(Direction dir, double distance)> byDistance = [];
-                foreach (var dir in validDirections)
-                {
-                    var (nx, ny) = CalculateNewPosition(dir);
-                    double d = Math.Sqrt(Math.Pow(nx - pacman.X, 2) + Math.Pow(ny - pacman.Y, 2));
-                    byDistance.Add((dir, d));
-                }
-                byDistance.Sort((a, b) => b.distance.CompareTo(a.distance));
-                MoveInDirection(byDistance[_random.Next(Math.Min(2, byDistance.Count))].dir, map);
+                State = GhostState.Outside;
+                Mode = GhostMode.Scatter;
             }
             else
             {
-                MoveInDirection(validDirections[_random.Next(validDirections.Count)], map);
+                State = GhostState.PacingHome;
             }
         }
 
-        private void MoveInDirection(Direction direction, Map map)
+        public void SetFrightened()
         {
-            IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
-            CurrentDirection = direction;
-
-            const double tolerance = 0.3;
-            bool nearCenterX = Math.Abs(X - Math.Round(X)) < tolerance;
-            bool nearCenterY = Math.Abs(Y - Math.Round(Y)) < tolerance;
-
-            var (nextX, nextY) = CalculateNewPosition(CurrentDirection);
-            int intNextX = (int)Math.Round(nextX);
-            int intNextY = (int)Math.Round(nextY);
-
-            if ((nearCenterX || nearCenterY) &&
-                (CurrentDirection == Direction.Left || CurrentDirection == Direction.Right) &&
-                (NextDirection == Direction.Up || NextDirection == Direction.Down))
+            if (State == GhostState.Outside)
             {
-                if (GhostIsValidMove(intNextX, (int)Math.Round(Y), map) &&
-                    GhostIsValidMove((int)Math.Round(X), intNextY, map))
-                {
-                    X = nextX;
-                    Y = CalculateNewPosition(NextDirection).Item2;
-                    CurrentDirection = NextDirection;
-                    return;
-                }
-            }
-
-            if (GhostIsValidMove(intNextX, intNextY, map) || IsInTunnel)
-            {
-                X = nextX;
-                Y = nextY;
-                if (IsInTunnel)
-                {
-                    if (X < 0) X = map.Width - 1;
-                    if (X >= map.Width) X = 0;
-                }
-            }
-            else
-            {
-                var dirs = GetPossibleDirections(map);
-                if (dirs.Count > 0)
-                {
-                    Direction bestDir = dirs[0];
-                    double minDist = double.MaxValue;
-                    foreach (var dir in dirs)
-                    {
-                        var (tx, ty) = CalculateNewPosition(dir);
-                        double d = Math.Sqrt(Math.Pow(tx - nextX, 2) + Math.Pow(ty - nextY, 2));
-                        if (d < minDist) { minDist = d; bestDir = dir; }
-                    }
-                    CurrentDirection = bestDir;
-                    var (fx, fy) = CalculateNewPosition(bestDir);
-                    if (GhostIsValidMove((int)Math.Round(fx), (int)Math.Round(fy), map) || IsInTunnel)
-                    {
-                        X = fx;
-                        Y = fy;
-                        if (IsInTunnel)
-                        {
-                            if (X < 0) X = map.Width - 1;
-                            if (X >= map.Width) X = 0;
-                        }
-                    }
-                }
+                State = GhostState.Frightened;
+                _stateTimer = 0;
+                _signalReverse = true;
             }
         }
 
-        private (double, double) CalculateNewPosition(Direction direction)
-            => CalculateNewPosition(direction, GetCurrentSpeed());
-
-        private static bool GhostIsValidMove(int x, int y, Map map)
+        public void ForceLeaveHome()
         {
-            if (y >= 13 && y <= 14 && (x < 0 || x >= map.Width)) return true;
-            if (x < 0 || y < 0 || y >= map.Height || x >= map.Width) return false;
-            return !map.IsBlocking(x, y);
+            _signalLeaveHome = true;
+        }
+
+        protected abstract (double X, double Y) GetTargetPosition(Pacman pacman);
+
+        protected virtual (double X, double Y) GetScatterCorner(Map? map)
+        {
+            if (map == null)
+            {
+                return Color switch
+                {
+                    GhostColor.Red => (27, 0),
+                    GhostColor.Pink => (0, 0),
+                    GhostColor.Blue => (27, 30),
+                    GhostColor.Orange => (0, 30),
+                    _ => (0, 0)
+                };
+            }
+
+            return Color switch
+            {
+                GhostColor.Red => (map.Width - 1, 0),
+                GhostColor.Pink => (0, 0),
+                GhostColor.Blue => (map.Width - 1, map.Height - 1),
+                GhostColor.Orange => (0, map.Height - 1),
+                _ => (0, 0)
+            };
         }
     }
+
+    // ---------------------- Implementaciones concretas ----------------------
 
     public class Blinky : Ghost
     {
         public Blinky(double x, double y) : base(GhostColor.Red, x, y, 0)
-            => SpawnPoint = ((int)x, (int)y);
+        {
+            SpawnPoint = ((int)x, (int)y);
+        }
+
         protected override (double X, double Y) GetTargetPosition(Pacman pacman)
             => (pacman.X, pacman.Y);
     }
@@ -362,16 +542,19 @@ namespace Pacman_Game.Models
     public class Pinky : Ghost
     {
         public Pinky(double x, double y) : base(GhostColor.Pink, x, y, 7)
-            => SpawnPoint = ((int)x, (int)y);
+        {
+            SpawnPoint = ((int)x, (int)y);
+        }
+
         protected override (double X, double Y) GetTargetPosition(Pacman pacman)
         {
             const int offset = 4;
             return pacman.CurrentDirection switch
             {
-                Direction.Left => (pacman.X - offset, pacman.Y - offset),
-                Direction.Right => (pacman.X + offset, pacman.Y - offset),
-                Direction.Up => (pacman.X - offset, pacman.Y - offset),
-                Direction.Down => (pacman.X + offset, pacman.Y + offset),
+                Direction.Left => (pacman.X - offset, pacman.Y),
+                Direction.Right => (pacman.X + offset, pacman.Y),
+                Direction.Up => (pacman.X, pacman.Y - offset),
+                Direction.Down => (pacman.X, pacman.Y + offset),
                 _ => (pacman.X, pacman.Y)
             };
         }
@@ -380,11 +563,13 @@ namespace Pacman_Game.Models
     public class Inky : Ghost
     {
         private readonly Blinky _blinky;
+
         public Inky(double x, double y, Blinky blinky) : base(GhostColor.Blue, x, y, 30)
         {
             _blinky = blinky;
             SpawnPoint = ((int)x, (int)y);
         }
+
         protected override (double X, double Y) GetTargetPosition(Pacman pacman)
         {
             var (blX, blY) = (_blinky.X, _blinky.Y);
@@ -396,8 +581,10 @@ namespace Pacman_Game.Models
                 Direction.Down => (pacman.X, pacman.Y + 2),
                 _ => (pacman.X, pacman.Y)
             };
+
             double tX = blX + 2 * (pX - blX);
             double tY = blY + 2 * (pY - blY);
+
             double d = Math.Sqrt(Math.Pow(tX - pacman.X, 2) + Math.Pow(tY - pacman.Y, 2));
             if (d > 16)
             {
@@ -405,6 +592,7 @@ namespace Pacman_Game.Models
                 tX = pacman.X + (tX - pacman.X) * r;
                 tY = pacman.Y + (tY - pacman.Y) * r;
             }
+
             return (tX, tY);
         }
     }
@@ -412,14 +600,19 @@ namespace Pacman_Game.Models
     public class Clyde : Ghost
     {
         public Clyde(double x, double y) : base(GhostColor.Orange, x, y, 60)
-            => SpawnPoint = ((int)x, (int)y);
+        {
+            SpawnPoint = ((int)x, (int)y);
+        }
+
         protected override (double X, double Y) GetTargetPosition(Pacman pacman)
         {
             double distance = Math.Sqrt(Math.Pow(X - pacman.X, 2) + Math.Pow(Y - pacman.Y, 2));
-            if (distance < 8) return (pacman.X, pacman.Y);
-            var corner = GetScatterCorner(null);
-            const double pull = 0.3;
-            return (corner.X * (1 - pull) + pacman.X * pull, corner.Y * (1 - pull) + pacman.Y * pull);
+            if (distance < 8)
+            {
+                var corner = GetScatterCorner(null);
+                return corner;
+            }
+            return (pacman.X, pacman.Y);
         }
     }
 }

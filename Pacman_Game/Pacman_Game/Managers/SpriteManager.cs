@@ -21,7 +21,6 @@ namespace Pacman_Game.Managers
         public Dictionary<string, Bitmap> FruitSprites { get; private set; } = new();
         public Dictionary<(GhostColor, Direction), Bitmap[]> GhostNormalSprites { get; private set; } = new();
         public Dictionary<Direction, Bitmap> GhostEyesSprites { get; private set; } = new();
-
         public Bitmap[] PacmanDeathSprites { get; private set; } = Array.Empty<Bitmap>();
         public Bitmap DotSprite { get; private set; } = CreateFallbackTexture(16, 16, Colors.Magenta);
         public Bitmap PowerPelletSprite { get; private set; } = CreateFallbackTexture(16, 16, Colors.Magenta);
@@ -55,12 +54,10 @@ namespace Pacman_Game.Managers
                 new PixelSize(width, height),
                 new Vector(96, 96),
                 PixelFormat.Bgra8888);
-
             using (var lockedBuffer = writableBitmap.Lock())
             {
                 byte[] pixelData = new byte[height * lockedBuffer.RowBytes];
                 const int bytesPerPixel = 4;
-
                 for (int y = 0; y < height; y++)
                 {
                     for (int x = 0; x < width; x++)
@@ -72,11 +69,8 @@ namespace Pacman_Game.Managers
                         pixelData[offset + 3] = color.A;
                     }
                 }
-
-                System.Runtime.InteropServices.Marshal.Copy(
-                    pixelData, 0, lockedBuffer.Address, pixelData.Length);
+                System.Runtime.InteropServices.Marshal.Copy(pixelData, 0, lockedBuffer.Address, pixelData.Length);
             }
-
             return writableBitmap;
         }
 
@@ -92,29 +86,22 @@ namespace Pacman_Game.Managers
                 PacmanSprites[Direction.Right] = new[]
                 {
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_right_1.png"),
-                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_right_2.png"),
-                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_closed.png")
+                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_right_2.png")
                 };
-
                 PacmanSprites[Direction.Left] = new[]
                 {
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_left_1.png"),
-                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_left_2.png"),
-                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_closed.png")
+                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_left_2.png")
                 };
-
                 PacmanSprites[Direction.Up] = new[]
                 {
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_up_1.png"),
-                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_up_2.png"),
-                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_closed.png")
+                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_up_2.png")
                 };
-
                 PacmanSprites[Direction.Down] = new[]
                 {
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_down_1.png"),
-                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_down_2.png"),
-                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_closed.png")
+                    LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_down_2.png")
                 };
 
                 PacmanDeathSprites = new Bitmap[]
@@ -132,10 +119,8 @@ namespace Pacman_Game.Managers
                     LoadBitmap("avares://Pacman_Game/Assets/sprites/pacman/pacman_death_11.png")
                 };
 
-
                 DotSprite = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/pacdot.png");
                 PowerPelletSprite = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/powerpellet.png");
-
 
                 FruitSprites["apple"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/apple.png");
                 FruitSprites["cherry"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/cherry.png");
@@ -145,7 +130,6 @@ namespace Pacman_Game.Managers
                 FruitSprites["galaxian"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/galaxian.png");
                 FruitSprites["bell"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/bell.png");
                 FruitSprites["key"] = LoadBitmap("avares://Pacman_Game/Assets/sprites/bonus_Items/key.png");
-
 
                 LoadTexture("path", "tilesets/sprite_path");
                 LoadTexture("TL1", "tilesets/corner_top_left/corner_top_left_01");
@@ -197,31 +181,23 @@ namespace Pacman_Game.Managers
         private void LoadGhostSprites(GhostColor color, string ghostName)
         {
             Dictionary<GhostState, Bitmap[]> states = new();
-            Dictionary<Direction, Bitmap[]> normalSprites = new();
 
             foreach (Direction dir in Enum.GetValues(typeof(Direction)))
             {
                 string dirName = dir.ToString().ToLower();
-
                 Bitmap[] frames = new[]
                 {
                     LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_{dirName}_1.png"),
                     LoadBitmap($"avares://Pacman_Game/Assets/sprites/ghost/{ghostName}/{ghostName}_{dirName}_2.png")
                 };
-
-                normalSprites[dir] = frames;
                 GhostNormalSprites[(color, dir)] = frames;
             }
-
-            states[GhostState.Chase] = normalSprites.Values.SelectMany(x => x).ToArray();
-            states[GhostState.Scatter] = normalSprites.Values.SelectMany(x => x).ToArray();
 
             Bitmap[] frightenedSprites = new[]
             {
                 LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_1.png"),
                 LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_2.png")
             };
-
             Bitmap[] flashingSprites = new[]
             {
                 LoadBitmap("avares://Pacman_Game/Assets/sprites/ghost/ghost_scared/ghost_scared_blink_1.png"),
