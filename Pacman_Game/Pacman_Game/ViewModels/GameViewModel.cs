@@ -28,9 +28,8 @@ namespace Pacman_Game.ViewModels
         private DispatcherTimer? _fastVariantTimer;
         private bool _isCriticalError;
 
-        // Eventos para comunicación con la vista (sin crear ventanas directamente)
         public event EventHandler? GameOverRequested;
-        public event EventHandler<int>? VictoryRequested; // parámetro: score
+        public event EventHandler<int>? VictoryRequested;
         public event EventHandler<Exception>? CriticalErrorRequested;
         public event EventHandler RequestClose = delegate { };
 
@@ -38,7 +37,6 @@ namespace Pacman_Game.ViewModels
         public List<Ghost> Ghosts { get; } = new();
         public Map GameMap { get; private set; } = new Map(0, 0);
         public string[,] MapTextures { get; private set; } = new string[0, 0];
-
         public ReactiveCommand<Unit, Unit> PauseGameCommand { get; }
         public ReactiveCommand<Unit, Unit> RestartGameCommand { get; }
         public ReactiveCommand<Unit, Unit> ReturnToMenuCommand { get; }
@@ -59,14 +57,11 @@ namespace Pacman_Game.ViewModels
             _powerPelletTimer.Tick += OnPowerPelletTick;
             _fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
             _fruitTimer.Tick += OnFruitTimerTick;
-
             SetupEventHandlers();
             _gameLoop.Update += OnGameUpdate;
             _gameLoop.CriticalError += OnGameLoopCriticalError;
-
             InitializeGame();
             _gameLoop.Start();
-
             PauseGameCommand = ReactiveCommand.Create(PauseGame);
             RestartGameCommand = ReactiveCommand.Create(RestartGame);
             ReturnToMenuCommand = ReactiveCommand.Create(ReturnToMenu);
@@ -83,13 +78,14 @@ namespace Pacman_Game.ViewModels
 
         public void Dispose()
         {
-            _sessionCts?.Cancel();
-            _sessionCts?.Dispose();
+            try { _sessionCts?.Cancel(); } catch { }
+            try { _sessionCts?.Dispose(); } catch { }
             _gameLoop.Stop();
             _fruitTimer.Stop();
             _powerPelletTimer.Stop();
             _fastVariantTimer?.Stop();
             SoundManager.Instance?.StopGhostLoop();
+            GC.SuppressFinalize(this);
         }
 
         private void OnGameUpdate(double deltaTime)
@@ -102,10 +98,8 @@ namespace Pacman_Game.ViewModels
                 Pacman.Move(GameMap, deltaTime);
                 HandleTeleports();
                 _collisionManager.CheckElementCollision(Pacman, GameMap, p => _scoreManager.AddPoints(p));
-
                 foreach (var ghost in Ghosts)
                     ghost.ChasePacman(Pacman, GameMap, deltaTime);
-
                 foreach (var ghost in Ghosts)
                 {
                     _collisionManager.CheckPacmanGhostCollision(
@@ -114,11 +108,9 @@ namespace Pacman_Game.ViewModels
                         d => _scoreManager.RemoveLife(),
                         t => DeathTime = t,
                         _gameLoop.Pause, _gameLoop.Resume,
-                        _sessionCts.Token);
+                        _sessionCts?.Token ?? CancellationToken.None);
                 }
-
                 _collisionManager.CheckVictoryCondition(GameMap, OnVictoryAchieved);
-
                 _soundUpdateCounter++;
                 if (_soundUpdateCounter >= SoundUpdateInterval)
                 {
@@ -148,8 +140,8 @@ namespace Pacman_Game.ViewModels
                 _isCriticalError = false;
                 SoundManager.Instance.StopGhostLoop();
                 _fastVariantTimer?.Stop();
-                _sessionCts?.Cancel();
-                _sessionCts?.Dispose();
+                try { _sessionCts?.Cancel(); } catch { }
+                try { _sessionCts?.Dispose(); } catch { }
                 _sessionCts = new CancellationTokenSource();
 
                 InitializeMap();
@@ -162,13 +154,11 @@ namespace Pacman_Game.ViewModels
                 _gameOverWindowShown = false;
                 _currentGhostLoop = null;
                 _soundUpdateCounter = 0;
-
                 foreach (var ghost in Ghosts)
                 {
                     ghost.Reset();
                     ghost.ReturnedHome += OnGhostReturnedHome;
                 }
-
                 _fruitTimer.Stop();
                 _fruitTimer.Start();
                 Pacman.IsPowerPelletActive = false;
@@ -274,6 +264,7 @@ namespace Pacman_Game.ViewModels
                     await Task.Delay(100, animCts.Token);
                 }
                 await Task.Delay(500, animCts.Token);
+
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (_isCriticalError) return;
@@ -293,6 +284,7 @@ namespace Pacman_Game.ViewModels
                 });
             }
             catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
         }
 
         private void OnVictoryAchieved()
@@ -337,7 +329,6 @@ namespace Pacman_Game.ViewModels
         private void UpdateGhostSoundLoop()
         {
             if (Pacman.IsPowerPelletActive || _isCriticalError) return;
-
             bool anyChase = false, anyScatter = false, anyEaten = false;
             foreach (var g in Ghosts)
             {
@@ -351,15 +342,15 @@ namespace Pacman_Game.ViewModels
             }
 
             string? desiredLoop = anyEaten ? "ghost_return_home" :
-                                  anyChase ? SoundManager.Instance.GetRandomFastVariant() :
-                                  anyScatter ? "ghost_move_normal" : null;
+                anyChase ? SoundManager.Instance.GetRandomFastVariant() :
+                anyScatter ? "ghost_move_normal" : null;
 
             if (desiredLoop != _currentGhostLoop)
             {
                 _currentGhostLoop = desiredLoop;
                 if (desiredLoop != null)
                 {
-                    SoundManager.Instance.StartGhostLoopAsync(desiredLoop);
+                    _ = SoundManager.Instance.StartGhostLoopAsync(desiredLoop);
                     if (anyChase)
                     {
                         _fastVariantTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
@@ -371,7 +362,7 @@ namespace Pacman_Game.ViewModels
                                 if (nv != _currentGhostLoop)
                                 {
                                     _currentGhostLoop = nv;
-                                    SoundManager.Instance.StartGhostLoopAsync(nv);
+                                    _ = SoundManager.Instance.StartGhostLoopAsync(nv);
                                 }
                             }
                         };

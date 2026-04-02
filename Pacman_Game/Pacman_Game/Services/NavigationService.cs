@@ -38,11 +38,9 @@ namespace Pacman_Game.Services
                     _parameters[typeof(T)] = parameter;
                     if (parameter != null && newWindow is INavigationAware aware)
                         aware.OnNavigatedTo(parameter);
-
                     var oldWindow = _currentWindow;
                     _currentWindow = newWindow;
                     _windowStack.Push(newWindow);
-
                     newWindow.Show();
                     oldWindow?.Close();
                 }
@@ -55,12 +53,13 @@ namespace Pacman_Game.Services
             {
                 lock (_lock)
                 {
+                    if (_currentWindow == null)
+                        return default;
+
                     var dialog = new T();
                     _parameters[typeof(T)] = parameter;
                     if (parameter != null && dialog is INavigationAware aware)
                         aware.OnNavigatedTo(parameter);
-
-                    // No cerrar la ventana actual, solo mostrar modal
                     return dialog.ShowDialog<T?>(_currentWindow);
                 }
             });
@@ -98,7 +97,6 @@ namespace Pacman_Game.Services
                 {
                     while (_windowStack.Count > 1)
                         _windowStack.Pop().Close();
-
                     if (_windowStack.Count == 1)
                     {
                         var main = _windowStack.Peek();
