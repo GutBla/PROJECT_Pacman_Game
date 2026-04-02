@@ -22,7 +22,7 @@ namespace Pacman_Game.Managers
         private LoopingSampleProvider? _currentLoop;
         private CancellationTokenSource? _loopTransitionCts;
         private float _masterVolume = 0.5f;
-        private bool _disposed;
+        private volatile bool _disposed;
         private bool _startMusicHasPlayed = false;
 
         private SoundManager()
@@ -38,38 +38,31 @@ namespace Pacman_Game.Managers
 
         private void LoadAndCacheSounds()
         {
-            string basePath = Path.GetDirectoryName(
-                System.Reflection.Assembly.GetExecutingAssembly().Location)
-                ?? Directory.GetCurrentDirectory();
+            string basePath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? Directory.GetCurrentDirectory();
             string dir = Path.Combine(basePath, "Assets", "sounds");
             if (!Directory.Exists(dir))
             {
                 dir = Path.Combine(Directory.GetCurrentDirectory(), "Assets", "sounds");
-                if (!Directory.Exists(dir))
-                {
-                    Console.WriteLine($"[AUDIO] Sound directory not found: {dir}");
-                    return;
-                }
+                if (!Directory.Exists(dir)) return;
             }
 
-            Console.WriteLine($"[AUDIO] Loading sounds from: {dir}");
             var files = new Dictionary<string, string>
             {
-                { "game_start_music",        "game_start_music.wav"        },
+                { "game_start_music", "game_start_music.wav" },
                 { "game_intermission_music", "game_intermission_music.wav" },
-                { "game_credit_sound",       "game_credit_sound.wav"       },
-                { "player_eat_pellet",       "player_eat_pellet.wav"       },
-                { "player_eat_fruit",        "player_eat_fruit.wav"        },
-                { "player_eat_ghost",        "player_eat_ghost.wav"        },
-                { "player_death",            "player_death.wav"            },
-                { "player_extra_life",       "player_extra_life.wav"       },
-                { "ghost_move_normal",       "ghost_move_normal.wav"       },
-                { "ghost_move_fast_1",       "ghost_move_fast_1.wav"       },
-                { "ghost_move_fast_2",       "ghost_move_fast_2.wav"       },
-                { "ghost_move_fast_3",       "ghost_move_fast_3.wav"       },
-                { "ghost_move_fast_4",       "ghost_move_fast_4.wav"       },
-                { "ghost_vulnerable_mode",   "ghost_vulnerable_mode.wav"   },
-                { "ghost_return_home",       "ghost_return_home.wav"       },
+                { "game_credit_sound", "game_credit_sound.wav" },
+                { "player_eat_pellet", "player_eat_pellet.wav" },
+                { "player_eat_fruit", "player_eat_fruit.wav" },
+                { "player_eat_ghost", "player_eat_ghost.wav" },
+                { "player_death", "player_death.wav" },
+                { "player_extra_life", "player_extra_life.wav" },
+                { "ghost_move_normal", "ghost_move_normal.wav" },
+                { "ghost_move_fast_1", "ghost_move_fast_1.wav" },
+                { "ghost_move_fast_2", "ghost_move_fast_2.wav" },
+                { "ghost_move_fast_3", "ghost_move_fast_3.wav" },
+                { "ghost_move_fast_4", "ghost_move_fast_4.wav" },
+                { "ghost_vulnerable_mode", "ghost_vulnerable_mode.wav" },
+                { "ghost_return_home", "ghost_return_home.wav" }
             };
 
             foreach (var (key, fileName) in files)
@@ -77,22 +70,10 @@ namespace Pacman_Game.Managers
                 var path = Path.Combine(dir, fileName);
                 if (File.Exists(path))
                 {
-                    try
-                    {
-                        _soundCache[key] = new CachedSound(path);
-                        Console.WriteLine($"[AUDIO] OK: {key}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[AUDIO] Error loading {fileName}: {ex.Message}");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"[AUDIO] File not found: {path}");
+                    try { _soundCache[key] = new CachedSound(path); }
+                    catch (Exception ex) { Console.WriteLine($"[AUDIO] Error loading {fileName}: {ex.Message}"); }
                 }
             }
-            Console.WriteLine($"[AUDIO] {_soundCache.Count}/{files.Count} sounds loaded.");
         }
 
         public void PlayStartMusicOnce()
@@ -104,49 +85,31 @@ namespace Pacman_Game.Managers
             }
         }
 
-        public void ResetStartMusicFlag()
-        {
-            _startMusicHasPlayed = false;
-        }
+        public void ResetStartMusicFlag() => _startMusicHasPlayed = false;
 
         public void PlaySound(string name)
         {
-            if (_disposed) return;
-            if (!_soundCache.TryGetValue(name, out var cachedSound))
-            {
-                Console.WriteLine($"[AUDIO] Not in cache: {name}");
-                return;
-            }
+            if (_disposed || !_soundCache.TryGetValue(name, out var cachedSound)) return;
 
             lock (_mixerLock)
             {
-                if (_currentlyPlaying.Contains(name))
-                {
-                    Console.WriteLine($"[AUDIO] Already playing: {name}, skipping duplicate");
-                    return;
-                }
+                if (_currentlyPlaying.Contains(name)) return;
             }
 
             try
             {
                 var provider = new CachedSoundSampleProvider(cachedSound);
                 ISampleProvider? tracked = null;
-                tracked = new AutoDisposeFileReader(provider, () =>
+                tracked = new AutoDisposeFileProvider(provider, () =>
                 {
                     lock (_mixerLock)
                     {
                         try
                         {
-                            if (tracked != null)
-                            {
-                                _mixer.RemoveMixerInput(tracked);
-                                _currentlyPlaying.Remove(name);
-                            }
+                            if (tracked != null) _mixer.RemoveMixerInput(tracked);
                         }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[AUDIO] Error removing mixer input: {ex.Message}");
-                        }
+                        catch { }
+                        _currentlyPlaying.Remove(name);
                     }
                 });
 
@@ -155,7 +118,6 @@ namespace Pacman_Game.Managers
                     _mixer.AddMixerInput(tracked);
                     _currentlyPlaying.Add(name);
                 }
-                Console.WriteLine($"[AUDIO] Playing: {name}");
             }
             catch (Exception ex)
             {
@@ -163,123 +125,49 @@ namespace Pacman_Game.Managers
             }
         }
 
-        public async Task PlaySoundSequenceAsync(params string[] soundNames)
-        {
-            foreach (var soundName in soundNames)
-            {
-                if (!_soundCache.TryGetValue(soundName, out var cachedSound))
-                {
-                    Console.WriteLine($"[AUDIO] Sound not found in sequence: {soundName}");
-                    continue;
-                }
-                await PlaySoundAndWaitAsync(soundName, cachedSound);
-            }
-        }
-
-        private async Task PlaySoundAndWaitAsync(string name, CachedSound cachedSound)
-        {
-            var completionSource = new TaskCompletionSource<bool>();
-            try
-            {
-                var provider = new CachedSoundSampleProvider(cachedSound);
-                ISampleProvider? tracked = null;
-                tracked = new AutoDisposeFileReader(provider, () =>
-                {
-                    lock (_mixerLock)
-                    {
-                        try
-                        {
-                            if (tracked != null)
-                            {
-                                _mixer.RemoveMixerInput(tracked);
-                                _currentlyPlaying.Remove(name);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[AUDIO] Error removing mixer input: {ex.Message}");
-                        }
-                    }
-                    completionSource.TrySetResult(true);
-                });
-
-                lock (_mixerLock)
-                {
-                    _mixer.AddMixerInput(tracked);
-                    _currentlyPlaying.Add(name);
-                }
-                Console.WriteLine($"[AUDIO] Playing in sequence: {name}");
-                await completionSource.Task;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[AUDIO] Error playing sequence {name}: {ex.Message}");
-                completionSource.TrySetResult(false);
-            }
-        }
-
         public async Task StartGhostLoopAsync(string soundKey)
         {
             if (_disposed) return;
-
             if (!_soundCache.TryGetValue(soundKey, out var cachedSound))
             {
-                Console.WriteLine($"[AUDIO] Loop sound not found: {soundKey}, trying fallback");
                 var fallbackMap = new Dictionary<string, string>
                 {
                     { "ghost_chase_mode", "ghost_move_fast_1" },
                     { "ghost_scatter_mode", "ghost_move_normal" },
                     { "ghost_return_siren", "ghost_return_home" }
                 };
-                if (fallbackMap.TryGetValue(soundKey, out var fallbackKey) &&
-                    _soundCache.TryGetValue(fallbackKey, out cachedSound))
-                {
-                    Console.WriteLine($"[AUDIO] Using fallback: {fallbackKey}");
-                }
-                else
-                {
-                    Console.WriteLine($"[AUDIO] No fallback available for: {soundKey}");
-                    return;
-                }
+                if (fallbackMap.TryGetValue(soundKey, out var fallback) && _soundCache.TryGetValue(fallback, out cachedSound))
+                    soundKey = fallback;
+                else return;
             }
 
             CancellationToken token;
             lock (_mixerLock)
             {
-                try
-                {
-                    _loopTransitionCts?.Cancel();
-                    _loopTransitionCts?.Dispose();
-                }
-                catch (ObjectDisposedException) { }
+                try { _loopTransitionCts?.Cancel(); } catch { }
+                try { _loopTransitionCts?.Dispose(); } catch { }
                 _loopTransitionCts = new CancellationTokenSource();
                 token = _loopTransitionCts.Token;
             }
 
             try
             {
-                if (_currentLoop != null)
+                var oldLoop = _currentLoop;
+                if (oldLoop != null)
                 {
-                    await FadeOutLoop(_currentLoop, token);
-                    lock (_mixerLock)
-                    {
-                        try { _mixer.RemoveMixerInput(_currentLoop); }
-                        catch (Exception ex) { Console.WriteLine($"[AUDIO] Error removing old loop: {ex.Message}"); }
-                    }
-                    _currentLoop = null;
+                    await FadeOutLoop(oldLoop, token);
+                    lock (_mixerLock) { try { _mixer.RemoveMixerInput(oldLoop); } catch { } }
                 }
 
                 await Task.Delay(50, token);
+
                 var newLoop = new LoopingSampleProvider(cachedSound);
                 lock (_mixerLock) { _mixer.AddMixerInput(newLoop); }
                 _currentLoop = newLoop;
+
                 await FadeInLoop(newLoop, token);
-                Console.WriteLine($"[AUDIO] Loop started: {soundKey}");
             }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine("[AUDIO] Loop transition cancelled.");
-            }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
                 Console.WriteLine($"[AUDIO] Error starting loop {soundKey}: {ex.Message}");
@@ -288,24 +176,20 @@ namespace Pacman_Game.Managers
 
         private static async Task FadeOutLoop(LoopingSampleProvider loop, CancellationToken token)
         {
-            const int steps = 20;
-            for (int i = steps; i >= 0; i--)
+            for (int i = 20; i >= 0 && !token.IsCancellationRequested; i--)
             {
-                if (token.IsCancellationRequested) break;
-                loop.Volume = (float)i / steps;
-                await Task.Delay(200 / steps, token);
+                loop.Volume = (float)i / 20;
+                await Task.Delay(20, token);
             }
         }
 
         private static async Task FadeInLoop(LoopingSampleProvider loop, CancellationToken token)
         {
-            const int steps = 20;
             loop.Volume = 0;
-            for (int i = 0; i <= steps; i++)
+            for (int i = 0; i <= 20 && !token.IsCancellationRequested; i++)
             {
-                if (token.IsCancellationRequested) break;
-                loop.Volume = (float)i / steps;
-                await Task.Delay(200 / steps, token);
+                loop.Volume = (float)i / 20;
+                await Task.Delay(20, token);
             }
         }
 
@@ -314,30 +198,19 @@ namespace Pacman_Game.Managers
             if (_disposed) return;
             lock (_mixerLock)
             {
-                try
+                try { _loopTransitionCts?.Cancel(); } catch { }
+                if (_currentLoop != null)
                 {
-                    _loopTransitionCts?.Cancel();
+                    try { _mixer.RemoveMixerInput(_currentLoop); } catch { }
+                    _currentLoop = null;
                 }
-                catch (ObjectDisposedException) { }
-            }
-
-            if (_currentLoop != null)
-            {
-                lock (_mixerLock)
-                {
-                    try { _mixer.RemoveMixerInput(_currentLoop); }
-                    catch (Exception ex) { Console.WriteLine($"[AUDIO] Error stopping loop: {ex.Message}"); }
-                }
-                _currentLoop = null;
-                Console.WriteLine("[AUDIO] Ghost loop stopped.");
             }
         }
 
         public void SetVolume(float volume)
         {
             _masterVolume = Math.Clamp(volume, 0f, 1f);
-            if (!_disposed)
-                _outputDevice.Volume = _masterVolume;
+            if (!_disposed) _outputDevice.Volume = _masterVolume;
         }
 
         public float GetVolume() => _masterVolume;
@@ -345,25 +218,18 @@ namespace Pacman_Game.Managers
         public string GetRandomFastVariant()
         {
             string[] variants = { "ghost_move_fast_1", "ghost_move_fast_2", "ghost_move_fast_3", "ghost_move_fast_4" };
-            return variants[new Random().Next(variants.Length)];
+            return variants[Random.Shared.Next(variants.Length)];
         }
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
-
             lock (_mixerLock)
             {
-                try
-                {
-                    _loopTransitionCts?.Cancel();
-                    _loopTransitionCts?.Dispose();
-                }
-                catch { }
-                _loopTransitionCts = null;
+                try { _loopTransitionCts?.Cancel(); } catch { }
+                try { _loopTransitionCts?.Dispose(); } catch { }
             }
-
             StopGhostLoop();
             _outputDevice?.Stop();
             _outputDevice?.Dispose();
@@ -372,11 +238,11 @@ namespace Pacman_Game.Managers
         }
     }
 
+    // Clases internas de SoundManager (sin cambios lógicos, solo ajustes de seguridad)
     public class CachedSound : IDisposable
     {
         public float[] AudioData { get; }
         public WaveFormat WaveFormat { get; }
-
         public CachedSound(string audioFilePath)
         {
             WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
@@ -386,14 +252,14 @@ namespace Pacman_Game.Managers
                 sampleProvider = new WdlResamplingSampleProvider(sampleProvider, 44100);
             if (sampleProvider.WaveFormat.Channels == 1)
                 sampleProvider = new MonoToStereoSampleProvider(sampleProvider);
-            var audioDataList = new List<float>();
-            var buffer = new float[44100 * 2];
-            int samplesRead;
-            while ((samplesRead = sampleProvider.Read(buffer, 0, buffer.Length)) > 0)
-                audioDataList.AddRange(buffer.Take(samplesRead));
-            AudioData = audioDataList.ToArray();
-        }
 
+            var list = new List<float>();
+            var buffer = new float[44100 * 2];
+            int read;
+            while ((read = sampleProvider.Read(buffer, 0, buffer.Length)) > 0)
+                list.AddRange(buffer.Take(read));
+            AudioData = list.ToArray();
+        }
         public void Dispose() { }
     }
 
@@ -401,20 +267,14 @@ namespace Pacman_Game.Managers
     {
         private readonly CachedSound _cachedSound;
         private int _position;
-
         public CachedSoundSampleProvider(CachedSound cachedSound) => _cachedSound = cachedSound;
-
         public WaveFormat WaveFormat => _cachedSound.WaveFormat;
-
         public int Read(float[] buffer, int offset, int count)
         {
             int available = _cachedSound.AudioData.Length - _position;
             int toCopy = Math.Min(available, count);
-            if (toCopy > 0)
-            {
-                Array.Copy(_cachedSound.AudioData, _position, buffer, offset, toCopy);
-                _position += toCopy;
-            }
+            if (toCopy > 0) Array.Copy(_cachedSound.AudioData, _position, buffer, offset, toCopy);
+            _position += toCopy;
             return toCopy;
         }
     }
@@ -424,17 +284,9 @@ namespace Pacman_Game.Managers
         private readonly CachedSound _cachedSound;
         private int _position;
         private float _volume = 1.0f;
-
         public LoopingSampleProvider(CachedSound cachedSound) => _cachedSound = cachedSound;
-
-        public float Volume
-        {
-            get => _volume;
-            set => _volume = Math.Clamp(value, 0f, 1f);
-        }
-
+        public float Volume { get => _volume; set => _volume = Math.Clamp(value, 0f, 1f); }
         public WaveFormat WaveFormat => _cachedSound.WaveFormat;
-
         public int Read(float[] buffer, int offset, int count)
         {
             int totalRead = 0;
@@ -446,36 +298,24 @@ namespace Pacman_Game.Managers
                     buffer[offset + totalRead + i] = _cachedSound.AudioData[_position + i] * _volume;
                 _position += toCopy;
                 totalRead += toCopy;
-                if (_position >= _cachedSound.AudioData.Length)
-                    _position = 0;
+                if (_position >= _cachedSound.AudioData.Length) _position = 0;
             }
             return totalRead;
         }
     }
 
-    public class AutoDisposeFileReader : ISampleProvider
+    public class AutoDisposeFileProvider : ISampleProvider
     {
         private readonly ISampleProvider _source;
         private readonly Action _onComplete;
         private bool _hasCompleted;
-
-        public AutoDisposeFileReader(ISampleProvider source, Action onComplete)
-        {
-            _source = source;
-            _onComplete = onComplete;
-        }
-
+        public AutoDisposeFileProvider(ISampleProvider source, Action onComplete) => (_source, _onComplete) = (source, onComplete);
         public WaveFormat WaveFormat => _source.WaveFormat;
-
         public int Read(float[] buffer, int offset, int count)
         {
             if (_hasCompleted) return 0;
             int read = _source.Read(buffer, offset, count);
-            if (read == 0 && !_hasCompleted)
-            {
-                _hasCompleted = true;
-                _onComplete?.Invoke();
-            }
+            if (read == 0 && !_hasCompleted) { _hasCompleted = true; try { _onComplete?.Invoke(); } catch { } }
             return read;
         }
     }

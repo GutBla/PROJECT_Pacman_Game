@@ -16,13 +16,11 @@ namespace Pacman_Game.Managers
         private int _ghostsEatenDuringPower;
         private bool _isPowerPelletActive;
 
-        // Eventos
         public event EventHandler<PointEatenEventArgs>? PointEaten;
         public event EventHandler<PacmanDeathEventArgs>? PacmanDied;
         public event EventHandler<GhostEatenEventArgs>? GhostEaten;
         public event EventHandler? VictoryAchieved;
-        public event EventHandler? PowerPelletEaten;   // ✅ NUEVO: se dispara al comer un power pellet
-
+        public event EventHandler? PowerPelletEaten;
         public int DotsEaten => _dotsEaten;
         public int GhostsEatenDuringPower => _ghostsEatenDuringPower;
         public bool IsPowerPelletActive => _isPowerPelletActive;
@@ -43,7 +41,6 @@ namespace Pacman_Game.Managers
         public void CheckElementCollision(Pacman pacman, Map map, Action<int> onScoreChanged)
         {
             if (map?.Elements == null) return;
-
             int x = (int)Math.Round(pacman.X);
             int y = (int)Math.Round(pacman.Y);
             if (y < 0 || y >= map.Height || x < 0 || x >= map.Width) return;
@@ -55,50 +52,36 @@ namespace Pacman_Game.Managers
             if (item == null) return;
 
             onScoreChanged(item.Points);
-
             switch (elementType)
             {
-                case "PD": // Punto normal
+                case "PD":
                     _dotsEaten++;
                     Ghost.UpdateDotsEaten(_dotsEaten);
                     _soundManager.PlaySound("player_eat_pellet");
                     PointEaten?.Invoke(this, new PointEatenEventArgs(10, "dot"));
                     break;
-
-                case "PP": // Power Pellet
+                case "PP":
                     _isPowerPelletActive = true;
                     pacman.IsPowerPelletActive = true;
                     _soundManager.StopGhostLoop();
-                    _soundManager.StartGhostLoopAsync("ghost_vulnerable_mode").ContinueWith(t =>
-                    {
-                        if (t.IsFaulted) Console.WriteLine($"[Audio] Error: {t.Exception}");
-                    });
+                    _soundManager.StartGhostLoopAsync("ghost_vulnerable_mode");
                     PointEaten?.Invoke(this, new PointEatenEventArgs(50, "powerPellet"));
-
-                    // ✅ Disparar evento para que el ViewModel active el modo vulnerable en los fantasmas
                     PowerPelletEaten?.Invoke(this, EventArgs.Empty);
                     break;
-
-                default: // Fruta u otro objeto
+                default:
                     _soundManager.PlaySound("player_eat_fruit");
                     PointEaten?.Invoke(this, new PointEatenEventArgs(item.Points, "fruit"));
                     break;
             }
-
-            map.Elements[y, x] = string.Empty; // Eliminar el objeto del mapa
+            map.Elements[y, x] = string.Empty;
         }
 
         public async Task CheckPacmanGhostCollisionAsync(
-            Pacman pacman,
-            Ghost ghost,
-            Action<int> onScoreChanged,
-            Action<int> onLivesChanged,
-            Action<DateTime> onDeathTimeSet,
-            Action pauseGame,
-            Action resumeGame,
+            Pacman pacman, Ghost ghost,
+            Action<int> onScoreChanged, Action<int> onLivesChanged,
+            Action<DateTime> onDeathTimeSet, Action pauseGame, Action resumeGame,
             CancellationToken cancellationToken)
         {
-            // Verificar si están en la misma celda (con redondeo)
             if ((int)Math.Round(pacman.X) != (int)Math.Round(ghost.X) ||
                 (int)Math.Round(pacman.Y) != (int)Math.Round(ghost.Y))
                 return;
@@ -108,49 +91,36 @@ namespace Pacman_Game.Managers
                             ghost.State == GhostState.FlashingFrightened;
             if (!isActive) return;
 
-            if (ghost.State == GhostState.Frightened ||
-                ghost.State == GhostState.FlashingFrightened)
+            if (ghost.State == GhostState.Frightened || ghost.State == GhostState.FlashingFrightened)
             {
-                // Pacman se come al fantasma
                 HandleGhostEaten(ghost, pacman, onScoreChanged);
                 pauseGame();
                 try
                 {
+                    // Delay seguro: ignora cancelación esperada
                     await Task.Delay(500, cancellationToken);
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        if (!pacman.IsDying && !cancellationToken.IsCancellationRequested)
-                            resumeGame();
-                    });
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) { }
+
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    Console.WriteLine("[CollisionManager] Delay de ghost eaten cancelado");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[CollisionManager] Error en ghost eaten: {ex.Message}");
-                }
+                    if (!pacman.IsDying && !cancellationToken.IsCancellationRequested)
+                        resumeGame();
+                });
             }
             else if (!pacman.IsDying)
             {
-                // Fantasma mata a Pacman
                 HandlePacmanDeath(pacman, ghost, onLivesChanged, onDeathTimeSet, pauseGame);
             }
         }
 
         public void CheckPacmanGhostCollision(
-            Pacman pacman,
-            Ghost ghost,
-            Action<int> onScoreChanged,
-            Action<int> onLivesChanged,
-            Action<DateTime> onDeathTimeSet,
-            Action pauseGame,
-            Action resumeGame,
+            Pacman pacman, Ghost ghost,
+            Action<int> onScoreChanged, Action<int> onLivesChanged,
+            Action<DateTime> onDeathTimeSet, Action pauseGame, Action resumeGame,
             CancellationToken cancellationToken = default)
         {
-            _ = CheckPacmanGhostCollisionAsync(
-                pacman, ghost, onScoreChanged, onLivesChanged,
+            _ = CheckPacmanGhostCollisionAsync(pacman, ghost, onScoreChanged, onLivesChanged,
                 onDeathTimeSet, pauseGame, resumeGame, cancellationToken);
         }
 
@@ -164,22 +134,17 @@ namespace Pacman_Game.Managers
             GhostEaten?.Invoke(this, new GhostEatenEventArgs(ghost, points));
         }
 
-        private void HandlePacmanDeath(
-            Pacman pacman,
-            Ghost ghost,
-            Action<int> onLivesChanged,
-            Action<DateTime> onDeathTimeSet,
-            Action pauseGame)
+        private void HandlePacmanDeath(Pacman pacman, Ghost ghost, Action<int> onLivesChanged,
+            Action<DateTime> onDeathTimeSet, Action pauseGame)
         {
             onLivesChanged(-1);
             _ghostsEatenDuringPower = 0;
-            var deathTime = DateTime.Now;
-            onDeathTimeSet(deathTime);
+            onDeathTimeSet(DateTime.Now);
             pacman.IsDying = true;
             pauseGame();
             _soundManager.StopGhostLoop();
             _soundManager.PlaySound("player_death");
-            PacmanDied?.Invoke(this, new PacmanDeathEventArgs(pacman, ghost, deathTime));
+            PacmanDied?.Invoke(this, new PacmanDeathEventArgs(pacman, ghost, DateTime.Now));
         }
 
         public void ActivatePowerPellet(Pacman pacman, IEnumerable<Ghost> ghosts)
@@ -187,15 +152,9 @@ namespace Pacman_Game.Managers
             _isPowerPelletActive = true;
             pacman.IsPowerPelletActive = true;
             _ghostsEatenDuringPower = 0;
-            foreach (var ghost in ghosts)
-            {
-                ghost.SetFrightened();
-            }
+            foreach (var ghost in ghosts) ghost.SetFrightened();
             _soundManager.StopGhostLoop();
-            _soundManager.StartGhostLoopAsync("ghost_vulnerable_mode").ContinueWith(t =>
-            {
-                if (t.IsFaulted) Console.WriteLine($"[Audio] Error: {t.Exception}");
-            });
+            _soundManager.StartGhostLoopAsync("ghost_vulnerable_mode");
         }
 
         public void EndPowerPellet(IEnumerable<Ghost> ghosts)
@@ -204,8 +163,7 @@ namespace Pacman_Game.Managers
             _ghostsEatenDuringPower = 0;
             foreach (var ghost in ghosts)
             {
-                if (ghost.State == GhostState.Frightened ||
-                    ghost.State == GhostState.FlashingFrightened)
+                if (ghost.State == GhostState.Frightened || ghost.State == GhostState.FlashingFrightened)
                 {
                     ghost.State = GhostState.Outside;
                     ghost.Mode = GhostMode.Chase;
@@ -217,51 +175,31 @@ namespace Pacman_Game.Managers
         {
             if (map?.Elements == null) return;
             for (int y = 0; y < map.Elements.GetLength(0); y++)
-            {
                 for (int x = 0; x < map.Elements.GetLength(1); x++)
-                {
-                    string el = map.Elements[y, x] ?? string.Empty;
-                    if (el == "PD" || el == "PP") return;
-                }
-            }
+                    if (map.Elements[y, x] is "PD" or "PP") return;
+
             onVictory();
             VictoryAchieved?.Invoke(this, EventArgs.Empty);
         }
     }
 
-    // Clases de EventArgs (sin cambios)
     public class PointEatenEventArgs : EventArgs
     {
         public int Points { get; }
         public string ItemType { get; }
-        public PointEatenEventArgs(int points, string itemType)
-        {
-            Points = points;
-            ItemType = itemType;
-        }
+        public PointEatenEventArgs(int points, string itemType) => (Points, ItemType) = (points, itemType);
     }
-
     public class PacmanDeathEventArgs : EventArgs
     {
         public Pacman Pacman { get; }
         public Ghost Ghost { get; }
         public DateTime DeathTime { get; }
-        public PacmanDeathEventArgs(Pacman pacman, Ghost ghost, DateTime deathTime)
-        {
-            Pacman = pacman;
-            Ghost = ghost;
-            DeathTime = deathTime;
-        }
+        public PacmanDeathEventArgs(Pacman pacman, Ghost ghost, DateTime deathTime) => (Pacman, Ghost, DeathTime) = (pacman, ghost, deathTime);
     }
-
     public class GhostEatenEventArgs : EventArgs
     {
         public Ghost Ghost { get; }
         public int Points { get; }
-        public GhostEatenEventArgs(Ghost ghost, int points)
-        {
-            Ghost = ghost;
-            Points = points;
-        }
+        public GhostEatenEventArgs(Ghost ghost, int points) => (Ghost, Points) = (ghost, points);
     }
 }

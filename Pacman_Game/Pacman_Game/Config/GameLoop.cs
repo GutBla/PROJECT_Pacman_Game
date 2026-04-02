@@ -9,8 +9,9 @@ namespace Pacman_Game
         private CancellationTokenSource? _cts;
         private Task? _loopTask;
         private readonly int _targetFrameTimeMs;
-        private bool _paused;
-        private bool _disposed;
+        private volatile bool _paused; // Thread-safe para acceso desde UI y background
+        private volatile bool _disposed;
+        private readonly object _lockObj = new();
 
         public event Action<double>? Update;
         public event EventHandler<CriticalErrorEventArgs>? CriticalError;
@@ -23,112 +24,72 @@ namespace Pacman_Game
         public void Start()
         {
             if (_disposed) return;
-            if (_loopTask != null && !_loopTask.IsCompleted)
-                return;
-
-            _cts = new CancellationTokenSource();
-            _loopTask = Task.Run(() => RunLoop(_cts.Token));
+            lock (_lockObj)
+            {
+                if (_loopTask != null && !_loopTask.IsCompleted) return;
+                _cts = new CancellationTokenSource();
+                _loopTask = Task.Run(() => RunLoop(_cts.Token), _cts.Token);
+            }
         }
 
         public void Stop()
         {
             if (_disposed) return;
-
-            try
+            CancellationTokenSource? cts;
+            lock (_lockObj)
             {
-                _cts?.Cancel();
-            }
-            catch (ObjectDisposedException)
-            {
+                cts = _cts;
+                _cts = null;
             }
 
+            cts?.Cancel();
             try
             {
                 _loopTask?.Wait(TimeSpan.FromSeconds(1));
             }
             catch (AggregateException) { }
+            catch (OperationCanceledException) { }
 
-            lock (this)
-            {
-                if (_cts != null)
-                {
-                    try { _cts.Dispose(); } catch (ObjectDisposedException) { }
-                    _cts = null;
-                }
-                _loopTask = null;
-            }
+            _loopTask = null;
         }
 
-        public void Pause()
-        {
-            _paused = true;
-        }
-
-        public void Resume()
-        {
-            _paused = false;
-        }
+        public void Pause() => _paused = true;
+        public void Resume() => _paused = false;
 
         private void RunLoop(CancellationToken token)
         {
             DateTime lastFrameTime = DateTime.UtcNow;
-
             while (!token.IsCancellationRequested && !_disposed)
             {
                 if (_paused)
                 {
                     Thread.Sleep(50);
-                    lastFrameTime = DateTime.UtcNow;
+                    lastFrameTime = DateTime.UtcNow; // Resetear delta tras pausa
                     continue;
                 }
 
                 var currentTime = DateTime.UtcNow;
-                var deltaTime = (currentTime - lastFrameTime).TotalSeconds;
+                var deltaTime = Math.Min((currentTime - lastFrameTime).TotalSeconds, 0.1);
                 lastFrameTime = currentTime;
-
-                // Limitar delta time máximo para evitar saltos grandes
-                deltaTime = Math.Min(deltaTime, 0.1);
 
                 try
                 {
                     Update?.Invoke(deltaTime);
                 }
-                catch (OperationCanceledException)
-                {
-                    // Cancelación limpia, continuar el loop
-                    Console.WriteLine("[GameLoop] Update cancelado limpiamente");
-                }
+                catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[GameLoop] Error en Update: {ex.GetType().Name} - {ex.Message}");
-                    Console.WriteLine($"[GameLoop] Stack trace: {ex.StackTrace}");
-
-                    // Notificar a los suscriptores del error crítico
                     CriticalError?.Invoke(this, new CriticalErrorEventArgs(ex));
-
-                    // Detener el loop de forma segura
                     _paused = true;
-
-                    // Esperar un momento para permitir que el ViewModel maneje el error
                     Thread.Sleep(100);
-
-                    // Si el error fue crítico, podemos decidir si continuar o no
-                    // Por ahora continuamos pero en estado pausado
                 }
 
                 var elapsed = (DateTime.UtcNow - currentTime).TotalMilliseconds;
                 var sleep = _targetFrameTimeMs - elapsed;
-
                 if (sleep > 0)
                 {
-                    try
-                    {
-                        Thread.Sleep((int)sleep);
-                    }
-                    catch (ThreadInterruptedException)
-                    {
-                        // Interrupción limpia durante shutdown
-                    }
+                    try { Thread.Sleep((int)sleep); }
+                    catch (ThreadInterruptedException) { }
                 }
             }
         }
@@ -136,7 +97,6 @@ namespace Pacman_Game
         public void Dispose()
         {
             if (_disposed) return;
-
             _disposed = true;
             Stop();
         }
@@ -145,10 +105,6 @@ namespace Pacman_Game
     public class CriticalErrorEventArgs : EventArgs
     {
         public Exception Exception { get; }
-
-        public CriticalErrorEventArgs(Exception exception)
-        {
-            Exception = exception;
-        }
+        public CriticalErrorEventArgs(Exception exception) => Exception = exception;
     }
 }

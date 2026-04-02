@@ -26,10 +26,7 @@ namespace Pacman_Game.Controls
         private static readonly SolidColorBrush BackgroundBrush = new(Color.FromRgb(0, 0, 0));
 
         public static readonly DirectProperty<GameCanvas, GameViewModel?> ViewModelProperty =
-            AvaloniaProperty.RegisterDirect<GameCanvas, GameViewModel?>(
-                nameof(ViewModel),
-                o => o.ViewModel,
-                (o, v) => o.ViewModel = v);
+            AvaloniaProperty.RegisterDirect<GameCanvas, GameViewModel?>(nameof(ViewModel), o => o.ViewModel, (o, v) => o.ViewModel = v);
 
         public GameViewModel? ViewModel
         {
@@ -53,15 +50,8 @@ namespace Pacman_Game.Controls
 
         private void SetupAnimationTimer()
         {
-            _animationTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(150)
-            };
-            _animationTimer.Tick += (_, _) =>
-            {
-                _seqIndex = (_seqIndex + 1) % _pingPong.Length;
-                InvalidateVisual();
-            };
+            _animationTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+            _animationTimer.Tick += (_, _) => { _seqIndex = (_seqIndex + 1) % _pingPong.Length; InvalidateVisual(); };
             _animationTimer.Start();
         }
 
@@ -69,8 +59,7 @@ namespace Pacman_Game.Controls
         {
             if (_textureCacheInitialized) return;
             var spriteManager = SpriteManager.Instance;
-            foreach (var kvp in spriteManager.TextureMap)
-                _textureCache[kvp.Key] = kvp.Value;
+            foreach (var kvp in spriteManager.TextureMap) _textureCache[kvp.Key] = kvp.Value;
             _textureCache["dot"] = spriteManager.DotSprite;
             _textureCache["powerPellet"] = spriteManager.PowerPelletSprite;
             _textureCacheInitialized = true;
@@ -80,7 +69,6 @@ namespace Pacman_Game.Controls
         {
             base.Render(context);
             if (_viewModel?.GameMap == null) return;
-
             InitializeTextureCache();
 
             if (_backgroundDirty || _cachedBackground == null)
@@ -104,6 +92,8 @@ namespace Pacman_Game.Controls
             int height = (int)Bounds.Height;
             if (width <= 0 || height <= 0) return;
 
+            // Liberar bitmap anterior para evitar fuga de memoria
+            _cachedBackground?.Dispose();
             var renderTarget = new RenderTargetBitmap(new PixelSize(width, height));
             using var ctx = renderTarget.CreateDrawingContext();
             ctx.FillRectangle(BackgroundBrush, new Rect(0, 0, width, height));
@@ -115,7 +105,6 @@ namespace Pacman_Game.Controls
         {
             var map = viewModel.GameMap!;
             for (int y = 0; y < map.Height; y++)
-            {
                 for (int x = 0; x < map.Width; x++)
                 {
                     var textureKey = map.GetTextureKey(x, y);
@@ -126,17 +115,11 @@ namespace Pacman_Game.Controls
                         if (_textureCache.TryGetValue("path", out var pathTex) && pathTex != null)
                             context.DrawImage(pathTex, rect);
                     }
-                    else if (!string.IsNullOrEmpty(textureKey) &&
-                             _textureCache.TryGetValue(textureKey, out var tex) && tex != null)
-                    {
+                    else if (!string.IsNullOrEmpty(textureKey) && _textureCache.TryGetValue(textureKey, out var tex) && tex != null)
                         context.DrawImage(tex, rect);
-                    }
                     else if (!isPath)
-                    {
                         context.FillRectangle(new SolidColorBrush(Colors.Magenta), rect);
-                    }
                 }
-            }
         }
 
         private void DrawGameElements(DrawingContext context, GameViewModel viewModel)
@@ -144,65 +127,52 @@ namespace Pacman_Game.Controls
             var map = viewModel.GameMap!;
             var elements = map.Elements;
             if (elements == null) return;
-
             var spriteManager = SpriteManager.Instance;
 
             for (int y = 0; y < map.Height; y++)
-            {
                 for (int x = 0; x < map.Width; x++)
                 {
                     var element = elements[y, x];
                     if (string.IsNullOrEmpty(element)) continue;
-
-                    Bitmap? sprite;
-                    Rect rect;
+                    Bitmap? sprite; Rect rect;
                     switch (element)
                     {
                         case "PD":
                             sprite = _textureCache.GetValueOrDefault("dot");
-                            rect = new Rect(x * CellSize + CellSize / 2 - 4,
-                                y * CellSize + CellSize / 2 - 4, 8, 8);
+                            rect = new Rect(x * CellSize + CellSize / 2 - 4, y * CellSize + CellSize / 2 - 4, 8, 8);
                             break;
                         case "PP":
                             sprite = _textureCache.GetValueOrDefault("powerPellet");
-                            rect = new Rect(x * CellSize + CellSize / 2 - 8,
-                                y * CellSize + CellSize / 2 - 8, 16, 16);
+                            rect = new Rect(x * CellSize + CellSize / 2 - 8, y * CellSize + CellSize / 2 - 8, 16, 16);
                             break;
                         default:
                             if (spriteManager.FruitSprites.TryGetValue(element, out var fruitSprite))
                             {
                                 sprite = fruitSprite;
-                                rect = new Rect(x * CellSize + CellSize / 2 - 8,
-                                    y * CellSize + CellSize / 2 - 8, 16, 16);
+                                rect = new Rect(x * CellSize + CellSize / 2 - 8, y * CellSize + CellSize / 2 - 8, 16, 16);
                             }
                             else continue;
                             break;
                     }
-
-                    if (sprite != null)
-                        context.DrawImage(sprite, rect);
+                    if (sprite != null) context.DrawImage(sprite, rect);
                 }
-            }
         }
 
         private void DrawPacman(DrawingContext context, GameViewModel viewModel)
         {
             var pacman = viewModel.Pacman;
             if (pacman == null) return;
-
             var spriteManager = SpriteManager.Instance;
             var rect = new Rect(pacman.X * CellSize, pacman.Y * CellSize, CellSize, CellSize);
 
             if (pacman.IsDying)
             {
-                if (spriteManager.PacmanDeathSprites != null &&
-                    pacman.DeathAnimationFrame < spriteManager.PacmanDeathSprites.Length)
+                if (spriteManager.PacmanDeathSprites != null && pacman.DeathAnimationFrame < spriteManager.PacmanDeathSprites.Length)
                     context.DrawImage(spriteManager.PacmanDeathSprites[pacman.DeathAnimationFrame], rect);
                 return;
             }
 
-            if (spriteManager.PacmanSprites.TryGetValue(pacman.CurrentDirection, out var frames) &&
-                frames != null && frames.Length > 0)
+            if (spriteManager.PacmanSprites.TryGetValue(pacman.CurrentDirection, out var frames) && frames != null && frames.Length > 0)
             {
                 int frameIndex = _pingPong[_seqIndex] % frames.Length;
                 context.DrawImage(frames[frameIndex], rect);
@@ -212,16 +182,9 @@ namespace Pacman_Game.Controls
         private void DrawGhosts(DrawingContext context, GameViewModel viewModel)
         {
             var spriteManager = SpriteManager.Instance;
-
             foreach (var ghost in viewModel.Ghosts)
             {
-                var rect = new Rect(
-                    ghost.X * CellSize,
-                    ghost.Y * CellSize,
-                    CellSize,
-                    CellSize
-                );
-
+                var rect = new Rect(ghost.X * CellSize, ghost.Y * CellSize, CellSize, CellSize);
                 Bitmap[]? sprites = null;
 
                 switch (ghost.State)
@@ -229,36 +192,16 @@ namespace Pacman_Game.Controls
                     case GhostState.GoingHome:
                     case GhostState.Eaten:
                         if (spriteManager.GhostEyesSprites.TryGetValue(ghost.CurrentDirection, out var eyeSprite))
-                        {
                             context.DrawImage(eyeSprite, rect);
-                        }
                         continue;
-
                     case GhostState.Frightened:
-                        if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out var ghostStates) &&
-                            ghostStates.TryGetValue(GhostState.Frightened, out var frightenedSprites))
-                        {
-                            sprites = frightenedSprites;
-                        }
+                        if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out var fs) && fs.TryGetValue(GhostState.Frightened, out var fSprites)) sprites = fSprites;
                         break;
-
                     case GhostState.FlashingFrightened:
-                        if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out var flashStates) &&
-                            flashStates.TryGetValue(GhostState.FlashingFrightened, out var flashSprites))
-                        {
-                            sprites = flashSprites;
-                        }
+                        if (spriteManager.GhostSprites.TryGetValue(ghost.Color, out var fls) && fls.TryGetValue(GhostState.FlashingFrightened, out var flashSprites)) sprites = flashSprites;
                         break;
-
-                    case GhostState.PacingHome:
-                    case GhostState.LeavingHome:
-                    case GhostState.EnteringHome:
-                    case GhostState.Outside:
-                        if (spriteManager.GhostNormalSprites.TryGetValue(
-                                (ghost.Color, ghost.CurrentDirection), out var normalSprites))
-                        {
-                            sprites = normalSprites;
-                        }
+                    default:
+                        if (spriteManager.GhostNormalSprites.TryGetValue((ghost.Color, ghost.CurrentDirection), out var normalSprites)) sprites = normalSprites;
                         break;
                 }
 
@@ -269,52 +212,25 @@ namespace Pacman_Game.Controls
                 }
                 else
                 {
-                    var fallbackColor = ghost.Color switch
-                    {
-                        GhostColor.Red => Colors.Red,
-                        GhostColor.Pink => Colors.Pink,
-                        GhostColor.Blue => Colors.Cyan,
-                        GhostColor.Orange => Colors.Orange,
-                        _ => Colors.White
-                    };
-                    context.FillRectangle(new SolidColorBrush(fallbackColor), rect);
+                    var fallback = ghost.Color switch { GhostColor.Red => Colors.Red, GhostColor.Pink => Colors.Pink, GhostColor.Blue => Colors.Cyan, GhostColor.Orange => Colors.Orange, _ => Colors.White };
+                    context.FillRectangle(new SolidColorBrush(fallback), rect);
                 }
             }
         }
 
-        public void InvalidateBackground()
-        {
-            _backgroundDirty = true;
-            InvalidateVisual();
-        }
+        public void InvalidateBackground() { _backgroundDirty = true; InvalidateVisual(); }
 
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
             if (_viewModel?.Pacman == null) return;
-
             switch (e.Key)
             {
-                case Key.Up or Key.W:
-                    _viewModel.Pacman.NextDirection = Direction.Up;
-                    e.Handled = true;
-                    break;
-                case Key.Down or Key.S:
-                    _viewModel.Pacman.NextDirection = Direction.Down;
-                    e.Handled = true;
-                    break;
-                case Key.Left or Key.A:
-                    _viewModel.Pacman.NextDirection = Direction.Left;
-                    e.Handled = true;
-                    break;
-                case Key.Right or Key.D:
-                    _viewModel.Pacman.NextDirection = Direction.Right;
-                    e.Handled = true;
-                    break;
-                case Key.R:
-                    _viewModel.InitializeGame();
-                    e.Handled = true;
-                    break;
+                case Key.Up or Key.W: _viewModel.Pacman.NextDirection = Direction.Up; e.Handled = true; break;
+                case Key.Down or Key.S: _viewModel.Pacman.NextDirection = Direction.Down; e.Handled = true; break;
+                case Key.Left or Key.A: _viewModel.Pacman.NextDirection = Direction.Left; e.Handled = true; break;
+                case Key.Right or Key.D: _viewModel.Pacman.NextDirection = Direction.Right; e.Handled = true; break;
+                case Key.R: _viewModel.InitializeGame(); e.Handled = true; break;
             }
         }
     }
