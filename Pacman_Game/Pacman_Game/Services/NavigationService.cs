@@ -1,79 +1,123 @@
-﻿using Avalonia.Controls;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Threading;
 
 namespace Pacman_Game.Services
 {
     public sealed class NavigationService
     {
-        private static readonly Lazy<NavigationService> _instance =
-            new(() => new NavigationService());
-
+        private static readonly Lazy<NavigationService> _instance = new(() => new NavigationService());
         public static NavigationService Instance => _instance.Value;
 
-        private Window? _mainWindow;
-        private readonly Stack<Window> _navigationStack = new();
-        private readonly Dictionary<Type, object?> _navigationParameters = new();
+        private Window? _currentWindow;
+        private readonly Stack<Window> _windowStack = new();
+        private readonly Dictionary<Type, object?> _parameters = new();
+        private readonly object _lock = new();
 
         private NavigationService() { }
 
-        public void Initialize(Window mainWindow)
+        public void SetCurrentWindow(Window window)
         {
-            _mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
+            lock (_lock)
+            {
+                _currentWindow = window;
+                if (_windowStack.Count == 0 || _windowStack.Peek() != window)
+                    _windowStack.Push(window);
+            }
         }
 
         public void NavigateTo<T>(object? parameter = null) where T : Window, new()
         {
-            var currentWindow = _navigationStack.Count > 0
-                ? _navigationStack.Peek()
-                : _mainWindow;
-
-            var newWindow = new T();
-
-            _navigationParameters[typeof(T)] = parameter;
-
-            if (parameter != null && newWindow is INavigationAware aware)
-                aware.OnNavigatedTo(parameter);
-
-            _navigationStack.Push(newWindow);
-            newWindow.Show();
-            currentWindow?.Hide();
-
-            newWindow.Closed += (_, _) =>
+            Dispatcher.UIThread.Post(() =>
             {
-                if (_navigationStack.Count > 0 && _navigationStack.Peek() == newWindow)
-                    _navigationStack.Pop();
-            };
+                lock (_lock)
+                {
+                    var newWindow = new T();
+                    _parameters[typeof(T)] = parameter;
+                    if (parameter != null && newWindow is INavigationAware aware)
+                        aware.OnNavigatedTo(parameter);
+
+                    var oldWindow = _currentWindow;
+                    _currentWindow = newWindow;
+                    _windowStack.Push(newWindow);
+
+                    newWindow.Show();
+                    oldWindow?.Close();
+                }
+            });
+        }
+
+        public async Task<T?> ShowModal<T>(object? parameter = null) where T : Window, new()
+        {
+            return await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                lock (_lock)
+                {
+                    var dialog = new T();
+                    _parameters[typeof(T)] = parameter;
+                    if (parameter != null && dialog is INavigationAware aware)
+                        aware.OnNavigatedTo(parameter);
+
+                    // No cerrar la ventana actual, solo mostrar modal
+                    return dialog.ShowDialog<T?>(_currentWindow);
+                }
+            });
         }
 
         public void GoBack()
         {
-            if (_navigationStack.Count > 1)
+            Dispatcher.UIThread.Post(() =>
             {
-                var current = _navigationStack.Pop();
-                _navigationStack.Peek().Show();
-                current.Close();
-            }
-            else if (_navigationStack.Count == 1)
-            {
-                var current = _navigationStack.Pop();
-                _mainWindow?.Show();
-                current.Close();
-            }
+                lock (_lock)
+                {
+                    if (_windowStack.Count > 1)
+                    {
+                        var current = _windowStack.Pop();
+                        var previous = _windowStack.Peek();
+                        _currentWindow = previous;
+                        current.Close();
+                        previous.Show();
+                    }
+                    else if (_windowStack.Count == 1)
+                    {
+                        var current = _windowStack.Pop();
+                        _currentWindow = null;
+                        current.Close();
+                    }
+                }
+            });
         }
 
         public void NavigateToMainMenu()
         {
-            while (_navigationStack.Count > 0)
-                _navigationStack.Pop().Close();
+            Dispatcher.UIThread.Post(() =>
+            {
+                lock (_lock)
+                {
+                    while (_windowStack.Count > 1)
+                        _windowStack.Pop().Close();
 
-            _mainWindow?.Show();
+                    if (_windowStack.Count == 1)
+                    {
+                        var main = _windowStack.Peek();
+                        _currentWindow = main;
+                        main.Show();
+                    }
+                }
+            });
         }
 
-        public object? GetNavigationParameter<T>() where T : Window =>
-            _navigationParameters.TryGetValue(typeof(T), out var param) ? param : null;
+        public object? GetParameter<T>() where T : Window
+        {
+            lock (_lock)
+            {
+                return _parameters.GetValueOrDefault(typeof(T));
+            }
+        }
 
-        public void ClearParameters() => _navigationParameters.Clear();
+        public void ClearParameters() => _parameters.Clear();
     }
 
     public interface INavigationAware

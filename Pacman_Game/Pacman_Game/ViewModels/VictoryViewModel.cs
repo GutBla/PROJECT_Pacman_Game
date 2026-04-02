@@ -12,6 +12,7 @@ namespace Pacman_Game.ViewModels
         private string _playerName = string.Empty;
         private int _score;
         private string _statusMessage = string.Empty;
+        public event EventHandler? RequestClose;
 
         public string PlayerName
         {
@@ -38,22 +39,23 @@ namespace Pacman_Game.ViewModels
         public VictoryViewModel(int score)
         {
             Score = score;
-
             RestartCommand = ReactiveCommand.Create(RestartGame);
             MenuCommand = ReactiveCommand.Create(ReturnToMenu);
-
-            var canSave = this.WhenAnyValue(
-                x => x.PlayerName,
-                name => !string.IsNullOrWhiteSpace(name));
-
+            var canSave = this.WhenAnyValue(x => x.PlayerName, name => !string.IsNullOrWhiteSpace(name));
             SaveScoreCommand = ReactiveCommand.Create(SaveScore, canSave);
         }
 
-        private void RestartGame() =>
+        private void RestartGame()
+        {
             NavigationService.Instance.NavigateTo<GameWindow>();
+            RequestClose?.Invoke(this, EventArgs.Empty);
+        }
 
-        private void ReturnToMenu() =>
+        private void ReturnToMenu()
+        {
             NavigationService.Instance.NavigateToMainMenu();
+            RequestClose?.Invoke(this, EventArgs.Empty);
+        }
 
         private void SaveScore()
         {
@@ -65,10 +67,9 @@ namespace Pacman_Game.ViewModels
                     Name = PlayerName.Trim(),
                     Rank = 0
                 };
-
                 StatusMessage = ScoreService.SaveScore(record)
-                    ? "Puntuacion guardada exitosamente."
-                    : "Error al guardar la puntuacion.";
+                    ? "Puntuación guardada exitosamente."
+                    : "Error al guardar la puntuación.";
             }
             catch (Exception ex)
             {

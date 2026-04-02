@@ -1,7 +1,6 @@
 ﻿using ReactiveUI;
 using System.Reactive;
-using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
+using Pacman_Game.Services;
 using Pacman_Game.Views;
 using Pacman_Game.Managers;
 
@@ -25,35 +24,22 @@ namespace Pacman_Game.ViewModels
         private void StartGame()
         {
             SoundManager.Instance.PlaySound("game_credit_sound");
-            var gameWindow = new GameWindow();
-            gameWindow.Show();
-            CloseCurrentWindow();
+            NavigationService.Instance.NavigateTo<GameWindow>();
         }
 
-        private void HowToPlay()
+        private async void HowToPlay()
         {
-            var howToPlayWindow = new HowToPlayWindow();
-            howToPlayWindow.Show();
+            await NavigationService.Instance.ShowModal<HowToPlayWindow>();
         }
 
-        private void HighScores()
+        private async void HighScores()
         {
-            var highScoresWindow = new HighScoresWindow();
-            highScoresWindow.Show();
+            await NavigationService.Instance.ShowModal<HighScoresWindow>();
         }
 
-        private void Settings()
+        private async void Settings()
         {
-            var settingsWindow = new SettingsWindow();
-            settingsWindow.Show();
-        }
-
-        private void CloseCurrentWindow()
-        {
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            {
-                desktop.MainWindow?.Close();
-            }
+            await NavigationService.Instance.ShowModal<SettingsWindow>();
         }
     }
 }

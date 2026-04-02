@@ -1,8 +1,8 @@
 ﻿using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using Pacman_Game.Managers;
-using Pacman_Game.ViewModels;
+using Pacman_Game.Services;
 using Pacman_Game.Views;
 
 namespace Pacman_Game
@@ -18,14 +18,11 @@ namespace Pacman_Game
         {
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                desktop.MainWindow = new MainWindow
-                {
-                    DataContext = new MainViewModel()
-                };
-                desktop.Exit += (sender, args) =>
-                {
-                    SoundManager.Instance.Dispose();
-                };
+                desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
+
+                var mainWindow = new MainWindow();
+                NavigationService.Instance.SetCurrentWindow(mainWindow);
+                desktop.MainWindow = mainWindow;
             }
 
             base.OnFrameworkInitializationCompleted();

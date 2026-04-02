@@ -1,6 +1,9 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
+using Pacman_Game.Services;
+using Pacman_Game.ViewModels;
+using System;
 
 namespace Pacman_Game.Views
 {
@@ -9,11 +12,16 @@ namespace Pacman_Game.Views
         public MainWindow()
         {
             InitializeComponent();
-#if DEBUG
+            DataContext = new MainViewModel();
             this.AttachDevTools();
-#endif
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+
+        protected override void OnOpened(EventArgs e)
+        {
+            base.OnOpened(e);
+            NavigationService.Instance.SetCurrentWindow(this);
+        }
     }
 }

@@ -7,18 +7,19 @@ namespace Pacman_Game.Views
 {
     public partial class MessageDialog : Window
     {
-        public MessageDialog(string message)
+        public MessageDialog()
         {
             InitializeComponent();
-#if DEBUG
             this.AttachDevTools();
-#endif
+        }
+
+        public MessageDialog(string message) : this()
+        {
             var tb = this.FindControl<TextBlock>("MessageText");
             if (tb != null) tb.Text = message;
         }
 
         private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
-
-        private void OKButton_Click(object sender, RoutedEventArgs e) => this.Close();
+        private void OKButton_Click(object sender, RoutedEventArgs e) => Close();
     }
 }
