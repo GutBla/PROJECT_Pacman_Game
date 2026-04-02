@@ -406,18 +406,25 @@ namespace Pacman_Game.Models
             IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
             CurrentDirection = direction;
             var (nextX, nextY) = CalculateNewPosition(CurrentDirection, movement);
+
+            bool wrappingTunnel = false;
+            if (IsInTunnel)
+            {
+                if (nextX < 0) { nextX = map.Width - 1; wrappingTunnel = true; }
+                else if (nextX >= map.Width) { nextX = 0; wrappingTunnel = true; }
+            }
+
             int intNextX = (int)Math.Round(nextX);
             int intNextY = (int)Math.Round(nextY);
-            if (GhostIsValidMove(intNextX, intNextY, map) || IsInTunnel)
+
+            if (GhostIsValidMove(intNextX, intNextY, map) || wrappingTunnel)
             {
                 X = nextX;
                 Y = nextY;
-                if (IsInTunnel)
-                {
-                    if (X < 0) X = map.Width - 1;
-                    if (X >= map.Width) X = 0;
-                }
             }
+
+            X = Math.Round(X, 1);
+            Y = Math.Round(Y, 1);
         }
 
         private (double, double) CalculateNewPosition(Direction direction, double movement)

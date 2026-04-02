@@ -100,6 +100,7 @@ namespace Pacman_Game.ViewModels
 
             _collisionManager.PacmanDied += OnPacmanDied;
             _collisionManager.VictoryAchieved += (s, e) => OnVictoryAchieved();
+            _collisionManager.PowerPelletEaten += (s, e) => ActivatePowerPellet();
         }
 
         public void Dispose()

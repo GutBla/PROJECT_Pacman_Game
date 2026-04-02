@@ -16,10 +16,12 @@ namespace Pacman_Game.Managers
         private int _ghostsEatenDuringPower;
         private bool _isPowerPelletActive;
 
+        // Eventos
         public event EventHandler<PointEatenEventArgs>? PointEaten;
         public event EventHandler<PacmanDeathEventArgs>? PacmanDied;
         public event EventHandler<GhostEatenEventArgs>? GhostEaten;
         public event EventHandler? VictoryAchieved;
+        public event EventHandler? PowerPelletEaten;   // ✅ NUEVO: se dispara al comer un power pellet
 
         public int DotsEaten => _dotsEaten;
         public int GhostsEatenDuringPower => _ghostsEatenDuringPower;
@@ -44,7 +46,6 @@ namespace Pacman_Game.Managers
 
             int x = (int)Math.Round(pacman.X);
             int y = (int)Math.Round(pacman.Y);
-
             if (y < 0 || y >= map.Height || x < 0 || x >= map.Width) return;
 
             string elementType = map.Elements[y, x] ?? string.Empty;
@@ -57,13 +58,14 @@ namespace Pacman_Game.Managers
 
             switch (elementType)
             {
-                case "PD":
+                case "PD": // Punto normal
                     _dotsEaten++;
                     Ghost.UpdateDotsEaten(_dotsEaten);
                     _soundManager.PlaySound("player_eat_pellet");
                     PointEaten?.Invoke(this, new PointEatenEventArgs(10, "dot"));
                     break;
-                case "PP":
+
+                case "PP": // Power Pellet
                     _isPowerPelletActive = true;
                     pacman.IsPowerPelletActive = true;
                     _soundManager.StopGhostLoop();
@@ -72,14 +74,18 @@ namespace Pacman_Game.Managers
                         if (t.IsFaulted) Console.WriteLine($"[Audio] Error: {t.Exception}");
                     });
                     PointEaten?.Invoke(this, new PointEatenEventArgs(50, "powerPellet"));
+
+                    // ✅ Disparar evento para que el ViewModel active el modo vulnerable en los fantasmas
+                    PowerPelletEaten?.Invoke(this, EventArgs.Empty);
                     break;
-                default:
+
+                default: // Fruta u otro objeto
                     _soundManager.PlaySound("player_eat_fruit");
                     PointEaten?.Invoke(this, new PointEatenEventArgs(item.Points, "fruit"));
                     break;
             }
 
-            map.Elements[y, x] = string.Empty;
+            map.Elements[y, x] = string.Empty; // Eliminar el objeto del mapa
         }
 
         public async Task CheckPacmanGhostCollisionAsync(
@@ -92,26 +98,25 @@ namespace Pacman_Game.Managers
             Action resumeGame,
             CancellationToken cancellationToken)
         {
+            // Verificar si están en la misma celda (con redondeo)
             if ((int)Math.Round(pacman.X) != (int)Math.Round(ghost.X) ||
                 (int)Math.Round(pacman.Y) != (int)Math.Round(ghost.Y))
                 return;
 
             bool isActive = ghost.State == GhostState.Outside ||
-                           ghost.State == GhostState.Frightened ||
-                           ghost.State == GhostState.FlashingFrightened;
-
+                            ghost.State == GhostState.Frightened ||
+                            ghost.State == GhostState.FlashingFrightened;
             if (!isActive) return;
 
             if (ghost.State == GhostState.Frightened ||
                 ghost.State == GhostState.FlashingFrightened)
             {
+                // Pacman se come al fantasma
                 HandleGhostEaten(ghost, pacman, onScoreChanged);
                 pauseGame();
-
                 try
                 {
                     await Task.Delay(500, cancellationToken);
-
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         if (!pacman.IsDying && !cancellationToken.IsCancellationRequested)
@@ -121,21 +126,19 @@ namespace Pacman_Game.Managers
                 catch (OperationCanceledException)
                 {
                     Console.WriteLine("[CollisionManager] Delay de ghost eaten cancelado");
-                    // Cancelación limpia, no relanzar
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[CollisionManager] Error en ghost eaten: {ex.Message}");
-                    // No relanzar para no romper el game loop
                 }
             }
             else if (!pacman.IsDying)
             {
+                // Fantasma mata a Pacman
                 HandlePacmanDeath(pacman, ghost, onLivesChanged, onDeathTimeSet, pauseGame);
             }
         }
 
-        // Método síncrono legacy para compatibilidad
         public void CheckPacmanGhostCollision(
             Pacman pacman,
             Ghost ghost,
@@ -146,7 +149,6 @@ namespace Pacman_Game.Managers
             Action resumeGame,
             CancellationToken cancellationToken = default)
         {
-            // Ejecutar la versión async sin await para compatibilidad
             _ = CheckPacmanGhostCollisionAsync(
                 pacman, ghost, onScoreChanged, onLivesChanged,
                 onDeathTimeSet, pauseGame, resumeGame, cancellationToken);
@@ -185,12 +187,10 @@ namespace Pacman_Game.Managers
             _isPowerPelletActive = true;
             pacman.IsPowerPelletActive = true;
             _ghostsEatenDuringPower = 0;
-
             foreach (var ghost in ghosts)
             {
                 ghost.SetFrightened();
             }
-
             _soundManager.StopGhostLoop();
             _soundManager.StartGhostLoopAsync("ghost_vulnerable_mode").ContinueWith(t =>
             {
@@ -202,7 +202,6 @@ namespace Pacman_Game.Managers
         {
             _isPowerPelletActive = false;
             _ghostsEatenDuringPower = 0;
-
             foreach (var ghost in ghosts)
             {
                 if (ghost.State == GhostState.Frightened ||
@@ -217,7 +216,6 @@ namespace Pacman_Game.Managers
         public void CheckVictoryCondition(Map map, Action onVictory)
         {
             if (map?.Elements == null) return;
-
             for (int y = 0; y < map.Elements.GetLength(0); y++)
             {
                 for (int x = 0; x < map.Elements.GetLength(1); x++)
@@ -226,17 +224,16 @@ namespace Pacman_Game.Managers
                     if (el == "PD" || el == "PP") return;
                 }
             }
-
             onVictory();
             VictoryAchieved?.Invoke(this, EventArgs.Empty);
         }
     }
 
+    // Clases de EventArgs (sin cambios)
     public class PointEatenEventArgs : EventArgs
     {
         public int Points { get; }
         public string ItemType { get; }
-
         public PointEatenEventArgs(int points, string itemType)
         {
             Points = points;
@@ -249,7 +246,6 @@ namespace Pacman_Game.Managers
         public Pacman Pacman { get; }
         public Ghost Ghost { get; }
         public DateTime DeathTime { get; }
-
         public PacmanDeathEventArgs(Pacman pacman, Ghost ghost, DateTime deathTime)
         {
             Pacman = pacman;
@@ -262,7 +258,6 @@ namespace Pacman_Game.Managers
     {
         public Ghost Ghost { get; }
         public int Points { get; }
-
         public GhostEatenEventArgs(Ghost ghost, int points)
         {
             Ghost = ghost;

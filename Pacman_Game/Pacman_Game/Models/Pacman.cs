@@ -18,7 +18,6 @@ namespace Pacman_Game.Models
             NextDirection = Direction.Right;
         }
 
-        // Velocidad por frame original (se usará para calcular velocidad por segundo)
         public double GetFrameSpeed()
         {
             if (IsInTunnel) return 0.4;
@@ -28,18 +27,21 @@ namespace Pacman_Game.Models
 
         public void Move(Map map, double deltaTime)
         {
-            IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
-
-            // Calcular velocidad por segundo: frameSpeed * (1000 / GameSpeed)
             double frameSpeed = GetFrameSpeed();
             double speedPerSecond = frameSpeed * (1000.0 / Config.GameSpeed);
             double movement = speedPerSecond * deltaTime;
 
             var (nextX, nextY) = CalculateNewPosition(NextDirection, movement);
+
+            // ✅ Manejo de túneles antes de validar colisión
+            bool wrappingTunnel = false;
+            if (nextX < 0) { nextX = map.Width - 1; wrappingTunnel = true; }
+            else if (nextX >= map.Width) { nextX = 0; wrappingTunnel = true; }
+
             int intNextX = (int)Math.Round(nextX);
             int intNextY = (int)Math.Round(nextY);
 
-            if (IsValidMove(intNextX, intNextY, map))
+            if (IsValidMove(intNextX, intNextY, map) || wrappingTunnel)
             {
                 CurrentDirection = NextDirection;
                 X = nextX;
@@ -50,7 +52,6 @@ namespace Pacman_Game.Models
                 var (newPosX, newPosY) = CalculateNewPosition(CurrentDirection, movement);
                 int intNewPosX = (int)Math.Round(newPosX);
                 int intNewPosY = (int)Math.Round(newPosY);
-
                 if (IsValidMove(intNewPosX, intNewPosY, map))
                 {
                     X = newPosX;
@@ -58,15 +59,14 @@ namespace Pacman_Game.Models
                 }
             }
 
-            // Teletransporte en túneles
-            if (X < 0) X = map.Width - 1;
-            if (X >= map.Width) X = 0;
+            // ✅ Snapping para evitar drift acumulativo
+            X = Math.Round(X, 1);
+            Y = Math.Round(Y, 1);
         }
 
         private new bool IsValidMove(int x, int y, Map map)
         {
-            if (x < 0) return true;
-            if (x >= map.Width) return true;
+            if (x < 0 || x >= map.Width) return true;   // Permitir wraparound
             return y >= 0 && y < map.Height && !map.IsBlocking(x, y);
         }
 
