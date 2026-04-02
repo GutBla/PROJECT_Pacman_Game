@@ -1,10 +1,114 @@
 ﻿using System;
+using System.IO;
+using System.Text.Json;
 
 namespace Pacman_Game.Models
 {
     public static class MapDataProvider
     {
+        private const string MapDataDirectory = "Assets/maps";
+        private const string DefaultMapFile = "default_map.json";
+
         public static int[,] GetGameMapData()
+        {
+            if (TryLoadMapFromJson("gameMap", out int[,]? mapData))
+            {
+                return mapData;
+            }
+            return GetDefaultGameMapData();
+        }
+
+        public static string[,] GetMapTexturesData()
+        {
+            if (TryLoadMapFromJson("mapTextures", out string[,]? textureData))
+            {
+                return textureData;
+            }
+            return GetDefaultMapTexturesData();
+        }
+
+        public static string[,] GetElementsData()
+        {
+            if (TryLoadMapFromJson("elements", out string[,]? elementsData))
+            {
+                return elementsData;
+            }
+            return GetDefaultElementsData();
+        }
+
+        public static MapData LoadCompleteMapData(string mapName = "default")
+        {
+            string filePath = Path.Combine(MapDataDirectory, $"{mapName}_map.json");
+            if (File.Exists(filePath))
+            {
+                try
+                {
+                    string json = File.ReadAllText(filePath);
+                    var mapData = JsonSerializer.Deserialize<MapData>(json);
+                    if (mapData != null)
+                    {
+                        return mapData;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[MapData] Error loading {mapName}: {ex.Message}");
+                }
+            }
+            return CreateDefaultMapData();
+        }
+
+        public static bool SaveMapData(MapData mapData, string mapName)
+        {
+            try
+            {
+                Directory.CreateDirectory(MapDataDirectory);
+                string filePath = Path.Combine(MapDataDirectory, $"{mapName}_map.json");
+                string json = JsonSerializer.Serialize(mapData, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(filePath, json);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MapData] Error saving {mapName}: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static bool TryLoadMapFromJson<T>(string dataType, out T? data)
+        {
+            data = default;
+            string filePath = Path.Combine(MapDataDirectory, $"{dataType}.json");
+            if (!File.Exists(filePath))
+                return false;
+            try
+            {
+                string json = File.ReadAllText(filePath);
+                data = JsonSerializer.Deserialize<T>(json);
+                return data != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static MapData CreateDefaultMapData()
+        {
+            return new MapData
+            {
+                GameMap = GetDefaultGameMapData(),
+                MapTextures = GetDefaultMapTexturesData(),
+                Elements = GetDefaultElementsData(),
+                MapName = "default"
+            };
+        }
+
+        // ------------------------------------------------------------
+        // Datos por defecto (igual que en el código original)
+        // ------------------------------------------------------------
+
+        private static int[,] GetDefaultGameMapData()
         {
             return new int[,]
             {
@@ -42,7 +146,7 @@ namespace Pacman_Game.Models
             };
         }
 
-        public static string[,] GetMapTexturesData()
+        private static string[,] GetDefaultMapTexturesData()
         {
             return new string[,]
             {
@@ -80,7 +184,7 @@ namespace Pacman_Game.Models
             };
         }
 
-        public static string[,] GetElementsData()
+        private static string[,] GetDefaultElementsData()
         {
             return new string[,]
             {

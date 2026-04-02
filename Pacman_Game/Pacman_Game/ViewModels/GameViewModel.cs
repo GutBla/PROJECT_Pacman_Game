@@ -6,35 +6,34 @@ using ReactiveUI;
 using System;
 using System.Collections.Generic;
 using System.Reactive;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Pacman_Game.ViewModels
 {
     public class GameViewModel : ViewModelBase, IDisposable
     {
-        private int _score;
-        private int _lives;
-        private int _dotsEaten;
         private bool _isGameOver;
         private bool _isVictory;
         private bool _gameOverWindowShown;
-        private int _ghostsEatenDuringPower;
         private DateTime? _deathTime;
-        private int _nextExtraLifeScore = 10000;
-        private readonly Random _random = new();
-        private GameLoop _gameLoop;
+        private readonly GameLoop _gameLoop;
         private readonly DispatcherTimer _powerPelletTimer;
         private readonly DispatcherTimer _fruitTimer;
-        private readonly ItemFactory _itemFactory = new();
+        private readonly CollisionManager _collisionManager;
+        private readonly ScoreManager _scoreManager;
+        private readonly CancellationTokenSource _viewModelCts;
         private string? _currentGhostLoop;
         private int _soundUpdateCounter;
         private const int SoundUpdateInterval = 5;
         private DispatcherTimer? _fastVariantTimer;
+        private bool _isCriticalError;
 
         public event EventHandler RequestClose = delegate { };
+        public event EventHandler<CriticalErrorEventArgs>? CriticalErrorOccurred;
 
         public Pacman Pacman { get; } = new();
-        public List<Ghost> Ghosts { get; } = [];
+        public List<Ghost> Ghosts { get; } = new();
         public Map GameMap { get; private set; } = new Map(0, 0);
         public string[,] MapTextures { get; private set; } = new string[0, 0];
 
@@ -48,17 +47,8 @@ namespace Pacman_Game.ViewModels
             set => this.RaiseAndSetIfChanged(ref _deathTime, value);
         }
 
-        public int Score
-        {
-            get => _score;
-            private set => this.RaiseAndSetIfChanged(ref _score, value);
-        }
-
-        public int Lives
-        {
-            get => _lives;
-            private set => this.RaiseAndSetIfChanged(ref _lives, value);
-        }
+        public int Score => _scoreManager.Score;
+        public int Lives => _scoreManager.Lives;
 
         public bool IsGameOver
         {
@@ -72,15 +62,25 @@ namespace Pacman_Game.ViewModels
             set => this.RaiseAndSetIfChanged(ref _isVictory, value);
         }
 
+        public bool IsCriticalError => _isCriticalError;
+
         public GameViewModel()
         {
+            _viewModelCts = new CancellationTokenSource();
             _gameLoop = new GameLoop(Config.GameSpeed);
-            _gameLoop.Update += OnGameUpdate;
+            _collisionManager = new CollisionManager();
+            _scoreManager = new ScoreManager(Config.InitialLives);
 
             _powerPelletTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-            _powerPelletTimer.Tick += (_, _) => EndPowerPellet();
+            _powerPelletTimer.Tick += OnPowerPelletTick;
+
             _fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-            _fruitTimer.Tick += (_, _) => SpawnRandomFruit();
+            _fruitTimer.Tick += OnFruitTimerTick;
+
+            SetupEventHandlers();
+
+            _gameLoop.Update += OnGameUpdate;
+            _gameLoop.CriticalError += OnGameLoopCriticalError;
 
             InitializeGame();
             _gameLoop.Start();
@@ -90,8 +90,22 @@ namespace Pacman_Game.ViewModels
             ReturnToMenuCommand = ReactiveCommand.Create(ReturnToMenu);
         }
 
+        private void SetupEventHandlers()
+        {
+            _scoreManager.ScoreChanged += (s, e) =>
+                Dispatcher.UIThread.InvokeAsync(() => this.RaisePropertyChanged(nameof(Score)));
+
+            _scoreManager.LivesChanged += (s, e) =>
+                Dispatcher.UIThread.InvokeAsync(() => this.RaisePropertyChanged(nameof(Lives)));
+
+            _collisionManager.PacmanDied += OnPacmanDied;
+            _collisionManager.VictoryAchieved += (s, e) => OnVictoryAchieved();
+        }
+
         public void Dispose()
         {
+            _viewModelCts.Cancel();
+            _viewModelCts.Dispose();
             _gameLoop.Stop();
             _fruitTimer.Stop();
             _powerPelletTimer.Stop();
@@ -100,83 +114,174 @@ namespace Pacman_Game.ViewModels
 
         private void OnGameUpdate(double deltaTime)
         {
-            if (IsGameOver || IsVictory || Pacman.IsDying) return;
+            if (IsGameOver || IsVictory || Pacman.IsDying || _isCriticalError) return;
 
-            Pacman.Move(GameMap, deltaTime);
-            HandleTeleports();
-            CheckElementCollision();
-
-            foreach (var ghost in Ghosts)
-                ghost.ChasePacman(Pacman, GameMap, deltaTime);
-
-            foreach (var ghost in Ghosts)
-                CheckPacmanGhostCollision(ghost);
-
-            CheckVictoryCondition();
-            CheckExtraLife();
-
-            _soundUpdateCounter++;
-            if (_soundUpdateCounter >= SoundUpdateInterval)
+            try
             {
-                _soundUpdateCounter = 0;
-                UpdateGhostSoundLoop();
+                Pacman.Move(GameMap, deltaTime);
+                HandleTeleports();
+
+                _collisionManager.CheckElementCollision(Pacman, GameMap,
+                    points => _scoreManager.AddPoints(points));
+
+                foreach (var ghost in Ghosts)
+                    ghost.ChasePacman(Pacman, GameMap, deltaTime);
+
+                foreach (var ghost in Ghosts)
+                {
+                    _collisionManager.CheckPacmanGhostCollision(
+                        Pacman,
+                        ghost,
+                        points => _scoreManager.AddPoints(points),
+                        delta => _scoreManager.RemoveLife(),
+                        time => DeathTime = time,
+                        _gameLoop.Pause,
+                        _gameLoop.Resume,
+                        _viewModelCts.Token);
+                }
+
+                _collisionManager.CheckVictoryCondition(GameMap, OnVictoryAchieved);
+
+                _soundUpdateCounter++;
+                if (_soundUpdateCounter >= SoundUpdateInterval)
+                {
+                    _soundUpdateCounter = 0;
+                    UpdateGhostSoundLoop();
+                }
             }
-
-            Dispatcher.UIThread.InvokeAsync(() =>
+            catch (OperationCanceledException)
             {
-                this.RaisePropertyChanged(nameof(Score));
-                this.RaisePropertyChanged(nameof(Lives));
+                // Cancelación limpia, no hacer nada
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error en OnGameUpdate: {ex.Message}");
+                HandleCriticalError(ex);
+            }
+        }
+
+        private void OnGameLoopCriticalError(object? sender, CriticalErrorEventArgs e)
+        {
+            HandleCriticalError(e.Exception);
+        }
+
+        private void HandleCriticalError(Exception ex)
+        {
+            if (_isCriticalError) return;
+
+            _isCriticalError = true;
+            Console.WriteLine($"[GameViewModel] Error crítico: {ex.GetType().Name} - {ex.Message}");
+            Console.WriteLine($"[GameViewModel] Stack trace: {ex.StackTrace}");
+
+            CriticalErrorOccurred?.Invoke(this, new CriticalErrorEventArgs(ex));
+
+            Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                try
+                {
+                    _gameLoop.Stop();
+                    await Task.Delay(100);
+                    ShowErrorDialog(ex.Message);
+                }
+                catch (Exception dialogEx)
+                {
+                    Console.WriteLine($"[GameViewModel] Error mostrando diálogo: {dialogEx.Message}");
+                }
             });
+        }
+
+        private void ShowErrorDialog(string message)
+        {
+            try
+            {
+                var dialog = new MessageDialog($"Error crítico del juego:\n{message}\n\nEl juego se reiniciará.");
+                dialog.ShowDialog(new GameWindow());
+                RestartGame();
+            }
+            catch
+            {
+                // Si no podemos mostrar el diálogo, al menos intentamos reiniciar
+                RestartGame();
+            }
         }
 
         public void InitializeGame()
         {
-            SoundManager.Instance.StopGhostLoop();
-            _fastVariantTimer?.Stop();
-
-            InitializeMap();
-            InitializeGhosts();
-            ResetPacmanPosition();
-            Score = 0;
-            Lives = Config.InitialLives;
-            _dotsEaten = 0;
-            IsGameOver = false;
-            IsVictory = false;
-            _ghostsEatenDuringPower = 0;
-            _gameOverWindowShown = false;
-            _nextExtraLifeScore = 10000;
-            _currentGhostLoop = null;
-            _soundUpdateCounter = 0;
-
-            foreach (var ghost in Ghosts)
+            try
             {
-                ghost.Reset();
-                ghost.ReturnedHome += OnGhostReturnedHome;
+                _isCriticalError = false;
+                SoundManager.Instance.StopGhostLoop();
+                _fastVariantTimer?.Stop();
+
+                InitializeMap();
+                InitializeGhosts();
+                ResetPacmanPosition();
+
+                _scoreManager.Reset(Config.InitialLives);
+                _collisionManager.Reset();
+
+                IsGameOver = false;
+                IsVictory = false;
+                _gameOverWindowShown = false;
+                _currentGhostLoop = null;
+                _soundUpdateCounter = 0;
+
+                foreach (var ghost in Ghosts)
+                {
+                    ghost.Reset();
+                    ghost.ReturnedHome += OnGhostReturnedHome;
+                }
+
+                _fruitTimer.Stop();
+                _fruitTimer.Start();
+
+                Pacman.IsPowerPelletActive = false;
+                _powerPelletTimer.Stop();
+
+                UpdateGhostSoundLoop();
+                SoundManager.Instance.ResetStartMusicFlag();
+                SoundManager.Instance.PlaySound("game_start_music");
             }
-
-            _fruitTimer.Stop();
-            _fruitTimer.Start();
-
-            Pacman.IsPowerPelletActive = false;
-            _powerPelletTimer.Stop();
-            UpdateGhostSoundLoop();
-
-            SoundManager.Instance.ResetStartMusicFlag();
-            SoundManager.Instance.PlaySound("game_start_music");
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error en InitializeGame: {ex.Message}");
+                HandleCriticalError(ex);
+            }
         }
 
         private void OnGhostReturnedHome(object? sender, EventArgs e)
         {
-            SoundManager.Instance.PlaySound("ghost_return_home");
+            try
+            {
+                SoundManager.Instance.PlaySound("ghost_return_home");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error en OnGhostReturnedHome: {ex.Message}");
+            }
         }
 
-        private void CheckExtraLife()
+        private void OnPowerPelletTick(object? sender, EventArgs e)
         {
-            if (Score >= _nextExtraLifeScore)
+            try
             {
-                Lives++;
-                _nextExtraLifeScore += 10000;
-                SoundManager.Instance.PlaySound("player_extra_life");
+                EndPowerPellet();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error en PowerPelletTick: {ex.Message}");
+            }
+        }
+
+        private void OnFruitTimerTick(object? sender, EventArgs e)
+        {
+            try
+            {
+                SpawnRandomFruit();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error en FruitTimerTick: {ex.Message}");
             }
         }
 
@@ -196,176 +301,162 @@ namespace Pacman_Game.ViewModels
 
         private void SpawnRandomFruit()
         {
-            if (GameMap.Elements == null || IsGameOver || IsVictory) return;
+            if (IsGameOver || IsVictory || _isCriticalError) return;
 
-            List<(int x, int y)> spawnPoints = [];
-            for (int y = 0; y < GameMap.Elements.GetLength(0); y++)
-                for (int x = 0; x < GameMap.Elements.GetLength(1); x++)
-                    if (GameMap.Elements[y, x] == "FR")
-                        spawnPoints.Add((x, y));
-
-            if (spawnPoints.Count == 0) return;
-
-            var (fx, fy) = spawnPoints[_random.Next(spawnPoints.Count)];
-            string[] fruits = ["apple", "cherry", "strawberry", "orange", "melon", "galaxian", "bell"];
-            string fruit = fruits[_random.Next(fruits.Length)];
-            GameMap.Elements[fy, fx] = fruit;
-
-            var fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-            fruitTimer.Tick += (_, _) =>
+            _scoreManager.SpawnRandomFruit(GameMap, (fruit, x, y) =>
             {
-                if (GameMap.Elements[fy, fx] == fruit)
-                    GameMap.Elements[fy, fx] = "FR";
-                fruitTimer.Stop();
-            };
-            fruitTimer.Start();
-        }
-
-        private void CheckElementCollision()
-        {
-            if (GameMap?.Elements == null) return;
-
-            int x = (int)Math.Round(Pacman.X);
-            int y = (int)Math.Round(Pacman.Y);
-
-            if (y < 0 || y >= GameMap.Height || x < 0 || x >= GameMap.Width) return;
-
-            string elementType = GameMap.Elements[y, x] ?? string.Empty;
-            if (string.IsNullOrEmpty(elementType)) return;
-
-            var item = _itemFactory.CreateItem(elementType, x, y);
-            if (item == null) return;
-
-            Score += item.Points;
-
-            switch (elementType)
-            {
-                case "PD":
-                    _dotsEaten++;
-                    Ghost.UpdateDotsEaten(_dotsEaten);
-                    SoundManager.Instance.PlaySound("player_eat_pellet");
-                    break;
-                case "PP":
-                    ActivatePowerPellet();
-                    break;
-                default:
-                    SoundManager.Instance.PlaySound("player_eat_fruit");
-                    break;
-            }
-
-            GameMap.Elements[y, x] = string.Empty;
+                var fruitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+                fruitTimer.Tick += (_, _) =>
+                {
+                    try
+                    {
+                        if (GameMap.Elements[y, x] == fruit)
+                            _scoreManager.RemoveFruit(GameMap, x, y);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[GameViewModel] Error removiendo fruta: {ex.Message}");
+                    }
+                    finally
+                    {
+                        fruitTimer.Stop();
+                    }
+                };
+                fruitTimer.Start();
+            });
         }
 
         private void ActivatePowerPellet()
         {
-            Pacman.IsPowerPelletActive = true;
-            foreach (var ghost in Ghosts)
-                ghost.SetFrightened();
-
-            SoundManager.Instance.StopGhostLoop();
-            _fastVariantTimer?.Stop();
-            SoundManager.Instance.StartGhostLoopAsync("ghost_vulnerable_mode").ContinueWith(t =>
+            try
             {
-                if (t.IsFaulted) Console.WriteLine($"[Audio] Error: {t.Exception}");
-            });
-            _currentGhostLoop = "ghost_vulnerable_mode";
-
-            _powerPelletTimer.Stop();
-            _powerPelletTimer.Start();
+                _collisionManager.ActivatePowerPellet(Pacman, Ghosts);
+                _currentGhostLoop = "ghost_vulnerable_mode";
+                _powerPelletTimer.Stop();
+                _powerPelletTimer.Start();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error activando PowerPellet: {ex.Message}");
+            }
         }
 
         private void EndPowerPellet()
         {
-            Pacman.IsPowerPelletActive = false;
-            _ghostsEatenDuringPower = 0;
-            _powerPelletTimer.Stop();
-            _currentGhostLoop = null;
-
-            foreach (var ghost in Ghosts)
+            try
             {
-                if (ghost.State == GhostState.Frightened || ghost.State == GhostState.FlashingFrightened)
-                {
-                    ghost.State = GhostState.Outside;
-                    ghost.Mode = GhostMode.Chase;
-                }
+                _collisionManager.EndPowerPellet(Ghosts);
+                _powerPelletTimer.Stop();
+                _currentGhostLoop = null;
+                UpdateGhostSoundLoop();
             }
-
-            UpdateGhostSoundLoop();
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error terminando PowerPellet: {ex.Message}");
+            }
         }
 
-        private void CheckPacmanGhostCollision(Ghost ghost)
+        private async void OnPacmanDied(object? sender, PacmanDeathEventArgs e)
         {
-            if ((int)Math.Round(Pacman.X) != (int)Math.Round(ghost.X) ||
-                (int)Math.Round(Pacman.Y) != (int)Math.Round(ghost.Y))
-                return;
-
-            bool isActive = ghost.State == GhostState.Outside ||
-                            ghost.State == GhostState.Frightened ||
-                            ghost.State == GhostState.FlashingFrightened;
-
-            if (!isActive) return;
-
-            if (ghost.State == GhostState.Frightened || ghost.State == GhostState.FlashingFrightened)
+            try
             {
-                ghost.State = GhostState.Eaten;
-                Score += 200 * (int)Math.Pow(2, _ghostsEatenDuringPower);
-                _ghostsEatenDuringPower++;
-                SoundManager.Instance.PlaySound("player_eat_ghost");
-
-                _gameLoop.Pause();
-                Task.Delay(500).ContinueWith(_ =>
-                {
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        if (!Pacman.IsDying)
-                            _gameLoop.Resume();
-                    });
-                });
-            }
-            else if (!Pacman.IsDying)
-            {
-                Lives--;
-                _ghostsEatenDuringPower = 0;
-                DeathTime = DateTime.Now;
-                Pacman.IsDying = true;
-
-                _gameLoop.Pause();
-                SoundManager.Instance.StopGhostLoop();
+                _collisionManager.EndPowerPellet(Ghosts);
                 _fastVariantTimer?.Stop();
                 _currentGhostLoop = null;
+                SoundManager.Instance.StopGhostLoop();
                 SoundManager.Instance.PlaySound("player_death");
 
-                PlayDeathAnimation();
+                await PlayDeathAnimationAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("[GameViewModel] Animación de muerte cancelada");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error en OnPacmanDied: {ex.Message}");
+                HandleCriticalError(ex);
             }
         }
 
-        private void CheckVictoryCondition()
+        private async Task PlayDeathAnimationAsync()
         {
-            if (GameMap?.Elements == null || IsVictory) return;
-
-            for (int y = 0; y < GameMap.Elements.GetLength(0); y++)
-                for (int x = 0; x < GameMap.Elements.GetLength(1); x++)
+            try
+            {
+                for (int i = 0; i < 11; i++)
                 {
-                    string el = GameMap.Elements[y, x] ?? string.Empty;
-                    if (el == "PD" || el == "PP") return;
+                    if (_viewModelCts.Token.IsCancellationRequested)
+                        return;
+
+                    Pacman.DeathAnimationFrame = i;
+                    await Task.Delay(100, _viewModelCts.Token);
                 }
 
-            IsVictory = true;
-            _gameLoop.Stop();
-            _fruitTimer.Stop();
-            _fastVariantTimer?.Stop();
-            SoundManager.Instance.StopGhostLoop();
-            SoundManager.Instance.PlaySound("game_intermission_music");
+                await Task.Delay(500, _viewModelCts.Token);
 
-            ShowVictoryWindow();
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (_isCriticalError) return;
+
+                    if (_scoreManager.Lives > 0)
+                    {
+                        ResetPositions();
+                        Pacman.IsDying = false;
+                        Pacman.DeathAnimationFrame = 0;
+                        _gameLoop.Resume();
+                        UpdateGhostSoundLoop();
+                    }
+                    else
+                    {
+                        IsGameOver = true;
+                        ShowGameOverWindow();
+                    }
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("[GameViewModel] PlayDeathAnimation cancelada limpiamente");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error en PlayDeathAnimation: {ex.Message}");
+                throw;
+            }
+        }
+
+        private void OnVictoryAchieved()
+        {
+            try
+            {
+                IsVictory = true;
+                _gameLoop.Stop();
+                _fruitTimer.Stop();
+                _fastVariantTimer?.Stop();
+                SoundManager.Instance.StopGhostLoop();
+                SoundManager.Instance.PlaySound("game_intermission_music");
+                ShowVictoryWindow();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error en OnVictoryAchieved: {ex.Message}");
+                HandleCriticalError(ex);
+            }
         }
 
         private void ShowVictoryWindow()
         {
             Dispatcher.UIThread.InvokeAsync(() =>
             {
-                var victoryWindow = new VictoryWindow(Score);
-                victoryWindow.Show();
+                try
+                {
+                    var victoryWindow = new VictoryWindow(_scoreManager.Score);
+                    victoryWindow.Show();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GameViewModel] Error mostrando VictoryWindow: {ex.Message}");
+                }
             });
         }
 
@@ -376,9 +467,16 @@ namespace Pacman_Game.ViewModels
 
             Dispatcher.UIThread.InvokeAsync(() =>
             {
-                var gameOverWindow = new GameOverWindow();
-                gameOverWindow.Closed += (_, _) => _gameOverWindowShown = false;
-                gameOverWindow.Show();
+                try
+                {
+                    var gameOverWindow = new GameOverWindow();
+                    gameOverWindow.Closed += (_, _) => _gameOverWindowShown = false;
+                    gameOverWindow.Show();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GameViewModel] Error mostrando GameOverWindow: {ex.Message}");
+                }
             });
         }
 
@@ -390,44 +488,24 @@ namespace Pacman_Game.ViewModels
             DeathTime = null;
         }
 
-        private async void PlayDeathAnimation()
-        {
-            for (int i = 0; i < 11; i++)
-            {
-                Pacman.DeathAnimationFrame = i;
-                await Task.Delay(100);
-            }
-            await Task.Delay(500);
-
-            Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                if (Lives > 0)
-                {
-                    ResetPositions();
-                    Pacman.IsDying = false;
-                    Pacman.DeathAnimationFrame = 0;
-                    _gameLoop.Resume();
-                    UpdateGhostSoundLoop();
-                }
-                else
-                {
-                    IsGameOver = true;
-                    ShowGameOverWindow();
-                }
-            });
-        }
-
         private void PauseGame()
         {
-            if (_gameLoop == null) return;
-            _gameLoop.Pause();
+            _gameLoop?.Pause();
         }
 
         private void RestartGame()
         {
-            _gameLoop.Stop();
-            InitializeGame();
-            _gameLoop.Start();
+            try
+            {
+                _gameLoop.Stop();
+                InitializeGame();
+                _gameLoop.Start();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameViewModel] Error en RestartGame: {ex.Message}");
+                HandleCriticalError(ex);
+            }
         }
 
         private void ReturnToMenu()
@@ -435,14 +513,21 @@ namespace Pacman_Game.ViewModels
             RequestClose?.Invoke(this, EventArgs.Empty);
             Dispatcher.UIThread.InvokeAsync(() =>
             {
-                var mainWindow = new MainWindow();
-                mainWindow.Show();
+                try
+                {
+                    var mainWindow = new MainWindow();
+                    mainWindow.Show();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GameViewModel] Error en ReturnToMenu: {ex.Message}");
+                }
             });
         }
 
         private void UpdateGhostSoundLoop()
         {
-            if (Pacman.IsPowerPelletActive) return;
+            if (Pacman.IsPowerPelletActive || _isCriticalError) return;
 
             bool anyChase = false;
             bool anyScatter = false;
@@ -457,7 +542,8 @@ namespace Pacman_Game.ViewModels
                     else if (ghost.Mode == GhostMode.Scatter)
                         anyScatter = true;
                 }
-                else if (ghost.State == GhostState.GoingHome || ghost.State == GhostState.Eaten)
+                else if (ghost.State == GhostState.GoingHome ||
+                         ghost.State == GhostState.Eaten)
                 {
                     anyEaten = true;
                 }
@@ -478,7 +564,8 @@ namespace Pacman_Game.ViewModels
                 {
                     SoundManager.Instance.StartGhostLoopAsync(desiredLoop).ContinueWith(t =>
                     {
-                        if (t.IsFaulted) Console.WriteLine($"[Audio] Loop error: {t.Exception}");
+                        if (t.IsFaulted)
+                            Console.WriteLine($"[Audio] Loop error: {t.Exception}");
                     });
 
                     if (anyChase)
@@ -486,16 +573,19 @@ namespace Pacman_Game.ViewModels
                         _fastVariantTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
                         _fastVariantTimer.Tick += (s, e) =>
                         {
-                            if (_currentGhostLoop?.StartsWith("ghost_move_fast") == true && !Pacman.IsPowerPelletActive)
+                            if (_currentGhostLoop?.StartsWith("ghost_move_fast") == true &&
+                                !Pacman.IsPowerPelletActive)
                             {
                                 string newVariant = SoundManager.Instance.GetRandomFastVariant();
                                 if (newVariant != _currentGhostLoop)
                                 {
                                     _currentGhostLoop = newVariant;
-                                    SoundManager.Instance.StartGhostLoopAsync(newVariant).ContinueWith(t =>
-                                    {
-                                        if (t.IsFaulted) Console.WriteLine($"[Audio] Variant error: {t.Exception}");
-                                    });
+                                    SoundManager.Instance.StartGhostLoopAsync(newVariant)
+                                        .ContinueWith(t =>
+                                        {
+                                            if (t.IsFaulted)
+                                                Console.WriteLine($"[Audio] Variant error: {t.Exception}");
+                                        });
                                 }
                             }
                         };
@@ -518,7 +608,6 @@ namespace Pacman_Game.ViewModels
         {
             var factory = new GhostFactory();
             Ghosts.Clear();
-
             Ghosts.Add(factory.CreateGhost(GhostColor.Red, 14, 11));
             Ghosts.Add(factory.CreateGhost(GhostColor.Pink, 14, 14));
             Ghosts.Add(factory.CreateGhost(GhostColor.Blue, 12, 14));

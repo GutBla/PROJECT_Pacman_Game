@@ -4,15 +4,16 @@ using System.Threading.Tasks;
 
 namespace Pacman_Game
 {
-    public class GameLoop
+    public class GameLoop : IDisposable
     {
-        private CancellationTokenSource _cts;
-        private Task _loopTask;
+        private CancellationTokenSource? _cts;
+        private Task? _loopTask;
         private readonly int _targetFrameTimeMs;
         private bool _paused;
+        private bool _disposed;
 
-        // Delta time en segundos para cálculos de movimiento consistentes
-        public event Action<double> Update;
+        public event Action<double>? Update;
+        public event EventHandler<CriticalErrorEventArgs>? CriticalError;
 
         public GameLoop(int frameTimeMs)
         {
@@ -21,24 +22,39 @@ namespace Pacman_Game
 
         public void Start()
         {
+            if (_disposed) return;
             if (_loopTask != null && !_loopTask.IsCompleted)
                 return;
+
             _cts = new CancellationTokenSource();
             _loopTask = Task.Run(() => RunLoop(_cts.Token));
         }
 
         public void Stop()
         {
-            _cts?.Cancel();
+            if (_disposed) return;
+
+            try
+            {
+                _cts?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+
             try
             {
                 _loopTask?.Wait(TimeSpan.FromSeconds(1));
             }
             catch (AggregateException) { }
-            finally
+
+            lock (this)
             {
-                _cts?.Dispose();
-                _cts = null;
+                if (_cts != null)
+                {
+                    try { _cts.Dispose(); } catch (ObjectDisposedException) { }
+                    _cts = null;
+                }
                 _loopTask = null;
             }
         }
@@ -57,12 +73,12 @@ namespace Pacman_Game
         {
             DateTime lastFrameTime = DateTime.UtcNow;
 
-            while (!token.IsCancellationRequested)
+            while (!token.IsCancellationRequested && !_disposed)
             {
                 if (_paused)
                 {
                     Thread.Sleep(50);
-                    lastFrameTime = DateTime.UtcNow; // Resetear delta time al pausar
+                    lastFrameTime = DateTime.UtcNow;
                     continue;
                 }
 
@@ -70,30 +86,69 @@ namespace Pacman_Game
                 var deltaTime = (currentTime - lastFrameTime).TotalSeconds;
                 lastFrameTime = currentTime;
 
-                // Limitar delta time máximo para evitar saltos grandes tras pausas
+                // Limitar delta time máximo para evitar saltos grandes
                 deltaTime = Math.Min(deltaTime, 0.1);
 
                 try
                 {
-                    // Pasar delta time a los suscriptores
                     Update?.Invoke(deltaTime);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Cancelación limpia, continuar el loop
+                    Console.WriteLine("[GameLoop] Update cancelado limpiamente");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[GameLoop] Error: {ex.Message}");
+                    Console.WriteLine($"[GameLoop] Error en Update: {ex.GetType().Name} - {ex.Message}");
+                    Console.WriteLine($"[GameLoop] Stack trace: {ex.StackTrace}");
+
+                    // Notificar a los suscriptores del error crítico
+                    CriticalError?.Invoke(this, new CriticalErrorEventArgs(ex));
+
+                    // Detener el loop de forma segura
+                    _paused = true;
+
+                    // Esperar un momento para permitir que el ViewModel maneje el error
+                    Thread.Sleep(100);
+
+                    // Si el error fue crítico, podemos decidir si continuar o no
+                    // Por ahora continuamos pero en estado pausado
                 }
 
                 var elapsed = (DateTime.UtcNow - currentTime).TotalMilliseconds;
                 var sleep = _targetFrameTimeMs - elapsed;
+
                 if (sleep > 0)
                 {
                     try
                     {
                         Thread.Sleep((int)sleep);
                     }
-                    catch (ThreadInterruptedException) { }
+                    catch (ThreadInterruptedException)
+                    {
+                        // Interrupción limpia durante shutdown
+                    }
                 }
             }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+
+            _disposed = true;
+            Stop();
+        }
+    }
+
+    public class CriticalErrorEventArgs : EventArgs
+    {
+        public Exception Exception { get; }
+
+        public CriticalErrorEventArgs(Exception exception)
+        {
+            Exception = exception;
         }
     }
 }

@@ -111,6 +111,7 @@ namespace Pacman_Game.Managers
 
         public void PlaySound(string name)
         {
+            if (_disposed) return;
             if (!_soundCache.TryGetValue(name, out var cachedSound))
             {
                 Console.WriteLine($"[AUDIO] Not in cache: {name}");
@@ -219,6 +220,8 @@ namespace Pacman_Game.Managers
 
         public async Task StartGhostLoopAsync(string soundKey)
         {
+            if (_disposed) return;
+
             if (!_soundCache.TryGetValue(soundKey, out var cachedSound))
             {
                 Console.WriteLine($"[AUDIO] Loop sound not found: {soundKey}, trying fallback");
@@ -240,9 +243,18 @@ namespace Pacman_Game.Managers
                 }
             }
 
-            _loopTransitionCts?.Cancel();
-            _loopTransitionCts = new CancellationTokenSource();
-            var token = _loopTransitionCts.Token;
+            CancellationToken token;
+            lock (_mixerLock)
+            {
+                try
+                {
+                    _loopTransitionCts?.Cancel();
+                    _loopTransitionCts?.Dispose();
+                }
+                catch (ObjectDisposedException) { }
+                _loopTransitionCts = new CancellationTokenSource();
+                token = _loopTransitionCts.Token;
+            }
 
             try
             {
@@ -299,7 +311,16 @@ namespace Pacman_Game.Managers
 
         public void StopGhostLoop()
         {
-            _loopTransitionCts?.Cancel();
+            if (_disposed) return;
+            lock (_mixerLock)
+            {
+                try
+                {
+                    _loopTransitionCts?.Cancel();
+                }
+                catch (ObjectDisposedException) { }
+            }
+
             if (_currentLoop != null)
             {
                 lock (_mixerLock)
@@ -315,7 +336,8 @@ namespace Pacman_Game.Managers
         public void SetVolume(float volume)
         {
             _masterVolume = Math.Clamp(volume, 0f, 1f);
-            _outputDevice.Volume = _masterVolume;
+            if (!_disposed)
+                _outputDevice.Volume = _masterVolume;
         }
 
         public float GetVolume() => _masterVolume;
@@ -329,18 +351,27 @@ namespace Pacman_Game.Managers
         public void Dispose()
         {
             if (_disposed) return;
-            _loopTransitionCts?.Cancel();
-            _loopTransitionCts?.Dispose();
+            _disposed = true;
+
+            lock (_mixerLock)
+            {
+                try
+                {
+                    _loopTransitionCts?.Cancel();
+                    _loopTransitionCts?.Dispose();
+                }
+                catch { }
+                _loopTransitionCts = null;
+            }
+
             StopGhostLoop();
             _outputDevice?.Stop();
             _outputDevice?.Dispose();
             foreach (var sound in _soundCache.Values) sound.Dispose();
             _soundCache.Clear();
-            _disposed = true;
         }
     }
 
-    // Clases auxiliares
     public class CachedSound : IDisposable
     {
         public float[] AudioData { get; }
@@ -355,13 +386,11 @@ namespace Pacman_Game.Managers
                 sampleProvider = new WdlResamplingSampleProvider(sampleProvider, 44100);
             if (sampleProvider.WaveFormat.Channels == 1)
                 sampleProvider = new MonoToStereoSampleProvider(sampleProvider);
-
             var audioDataList = new List<float>();
             var buffer = new float[44100 * 2];
             int samplesRead;
             while ((samplesRead = sampleProvider.Read(buffer, 0, buffer.Length)) > 0)
                 audioDataList.AddRange(buffer.Take(samplesRead));
-
             AudioData = audioDataList.ToArray();
         }
 
@@ -445,7 +474,7 @@ namespace Pacman_Game.Managers
             if (read == 0 && !_hasCompleted)
             {
                 _hasCompleted = true;
-                _onComplete?.Invoke(); // Se ejecuta en el hilo de NAudio
+                _onComplete?.Invoke();
             }
             return read;
         }
