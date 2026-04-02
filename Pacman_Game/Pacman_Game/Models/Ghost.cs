@@ -25,11 +25,9 @@ namespace Pacman_Game.Models
         private const int MaxScatterCycles = 4;
         private int _timeSinceLastDotEaten;
         private const int MaxTimeWithoutProgress = 400;
-
         protected (int X, int Y) SpawnPoint;
         protected (int X, int Y) HouseExit = (14, 11);
         protected (double X, double Y) HouseCenter = (14.0, 14.0);
-
         private readonly int _dotsRequiredToLeave;
         private static int _dotsEatenGlobal;
         private static int _lastDotsEaten;
@@ -72,7 +70,6 @@ namespace Pacman_Game.Models
             _dotsEatenGlobal = dotsEaten;
         }
 
-        // Velocidad por frame original (se usará para calcular velocidad por segundo)
         public double GetFrameSpeed()
         {
             if (IsInTunnel) return 0.4;
@@ -89,7 +86,6 @@ namespace Pacman_Game.Models
             };
         }
 
-        // Velocidad por segundo según la configuración
         private double GetSpeedPerSecond()
         {
             return GetFrameSpeed() * (1000.0 / Config.GameSpeed);
@@ -99,7 +95,6 @@ namespace Pacman_Game.Models
         {
             _stateTimer++;
             _timeSinceLastDotEaten++;
-
             if (_dotsEatenGlobal > _lastDotsEaten)
             {
                 _lastDotsEaten = _dotsEatenGlobal;
@@ -190,7 +185,6 @@ namespace Pacman_Game.Models
         public void ChasePacman(Pacman pacman, Map map, double deltaTime)
         {
             UpdateState();
-
             double movement = GetSpeedPerSecond() * deltaTime;
 
             switch (State)
@@ -293,7 +287,6 @@ namespace Pacman_Game.Models
                 CurrentDirection = OppositeDirection(CurrentDirection);
                 _signalReverse = false;
             }
-
             MoveTowardsTarget(targetX, targetY, map, movement, ignoreReverseRule: false);
         }
 
@@ -309,7 +302,6 @@ namespace Pacman_Game.Models
                 double d = Math.Sqrt(Math.Pow(nx - pacman.X, 2) + Math.Pow(ny - pacman.Y, 2));
                 byDistance.Add((dir, d));
             }
-
             byDistance.Sort((a, b) => b.distance.CompareTo(a.distance));
             int choices = Math.Min(2, byDistance.Count);
             Direction chosen = byDistance[_random.Next(choices)].dir;
@@ -321,7 +313,6 @@ namespace Pacman_Game.Models
             double doorX = HouseExit.X;
             double doorY = HouseExit.Y;
             MoveTowardsTarget(doorX, doorY, map, movement, ignoreReverseRule: true);
-
             double dist = Math.Sqrt(Math.Pow(X - doorX, 2) + Math.Pow(Y - doorY, 2));
             if (dist < 0.5)
             {
@@ -370,7 +361,6 @@ namespace Pacman_Game.Models
         {
             var directions = GetPossibleDirections(map, allowReverse: ignoreReverseRule);
             if (directions.Count == 0) return;
-
             if (directions.Count == 1)
             {
                 MoveInDirection(directions[0], map, movement);
@@ -379,7 +369,6 @@ namespace Pacman_Game.Models
 
             Direction bestDirection = CurrentDirection;
             double minDistance = double.MaxValue;
-
             foreach (var dir in directions)
             {
                 var (newX, newY) = CalculateNewPosition(dir, movement);
@@ -390,7 +379,6 @@ namespace Pacman_Game.Models
                     bestDirection = dir;
                 }
             }
-
             MoveInDirection(bestDirection, map, movement);
         }
 
@@ -398,23 +386,18 @@ namespace Pacman_Game.Models
         {
             List<Direction> directions = [];
             Direction opposite = OppositeDirection(CurrentDirection);
-
             foreach (Direction dir in Enum.GetValues(typeof(Direction)))
             {
                 if (!allowReverse && dir == opposite)
                     continue;
-
-                var (newX, newY) = CalculateNewPosition(dir, 0); // sin movimiento, solo para comprobar celda
+                var (newX, newY) = CalculateNewPosition(dir, 0);
                 int ix = (int)Math.Round(newX);
                 int iy = (int)Math.Round(newY);
-
                 if (GhostIsValidMove(ix, iy, map) || IsInTunnel)
                     directions.Add(dir);
             }
-
             if (directions.Count == 0)
                 directions.Add(opposite);
-
             return directions;
         }
 
@@ -422,16 +405,13 @@ namespace Pacman_Game.Models
         {
             IsInTunnel = (Y >= 13 && Y <= 14) && (X < 1 || X > map.Width - 2);
             CurrentDirection = direction;
-
             var (nextX, nextY) = CalculateNewPosition(CurrentDirection, movement);
             int intNextX = (int)Math.Round(nextX);
             int intNextY = (int)Math.Round(nextY);
-
             if (GhostIsValidMove(intNextX, intNextY, map) || IsInTunnel)
             {
                 X = nextX;
                 Y = nextY;
-
                 if (IsInTunnel)
                 {
                     if (X < 0) X = map.Width - 1;
@@ -472,7 +452,6 @@ namespace Pacman_Game.Models
             IsInTunnel = false;
             _signalReverse = false;
             _signalLeaveHome = false;
-
             if (Color == GhostColor.Red)
             {
                 State = GhostState.Outside;
@@ -514,7 +493,6 @@ namespace Pacman_Game.Models
                     _ => (0, 0)
                 };
             }
-
             return Color switch
             {
                 GhostColor.Red => (map.Width - 1, 0),
@@ -523,96 +501,6 @@ namespace Pacman_Game.Models
                 GhostColor.Orange => (0, map.Height - 1),
                 _ => (0, 0)
             };
-        }
-    }
-
-    // ---------------------- Implementaciones concretas ----------------------
-
-    public class Blinky : Ghost
-    {
-        public Blinky(double x, double y) : base(GhostColor.Red, x, y, 0)
-        {
-            SpawnPoint = ((int)x, (int)y);
-        }
-
-        protected override (double X, double Y) GetTargetPosition(Pacman pacman)
-            => (pacman.X, pacman.Y);
-    }
-
-    public class Pinky : Ghost
-    {
-        public Pinky(double x, double y) : base(GhostColor.Pink, x, y, 7)
-        {
-            SpawnPoint = ((int)x, (int)y);
-        }
-
-        protected override (double X, double Y) GetTargetPosition(Pacman pacman)
-        {
-            const int offset = 4;
-            return pacman.CurrentDirection switch
-            {
-                Direction.Left => (pacman.X - offset, pacman.Y),
-                Direction.Right => (pacman.X + offset, pacman.Y),
-                Direction.Up => (pacman.X, pacman.Y - offset),
-                Direction.Down => (pacman.X, pacman.Y + offset),
-                _ => (pacman.X, pacman.Y)
-            };
-        }
-    }
-
-    public class Inky : Ghost
-    {
-        private readonly Blinky _blinky;
-
-        public Inky(double x, double y, Blinky blinky) : base(GhostColor.Blue, x, y, 30)
-        {
-            _blinky = blinky;
-            SpawnPoint = ((int)x, (int)y);
-        }
-
-        protected override (double X, double Y) GetTargetPosition(Pacman pacman)
-        {
-            var (blX, blY) = (_blinky.X, _blinky.Y);
-            var (pX, pY) = pacman.CurrentDirection switch
-            {
-                Direction.Left => (pacman.X - 2, pacman.Y),
-                Direction.Right => (pacman.X + 2, pacman.Y),
-                Direction.Up => (pacman.X, pacman.Y - 2),
-                Direction.Down => (pacman.X, pacman.Y + 2),
-                _ => (pacman.X, pacman.Y)
-            };
-
-            double tX = blX + 2 * (pX - blX);
-            double tY = blY + 2 * (pY - blY);
-
-            double d = Math.Sqrt(Math.Pow(tX - pacman.X, 2) + Math.Pow(tY - pacman.Y, 2));
-            if (d > 16)
-            {
-                double r = 16 / d;
-                tX = pacman.X + (tX - pacman.X) * r;
-                tY = pacman.Y + (tY - pacman.Y) * r;
-            }
-
-            return (tX, tY);
-        }
-    }
-
-    public class Clyde : Ghost
-    {
-        public Clyde(double x, double y) : base(GhostColor.Orange, x, y, 60)
-        {
-            SpawnPoint = ((int)x, (int)y);
-        }
-
-        protected override (double X, double Y) GetTargetPosition(Pacman pacman)
-        {
-            double distance = Math.Sqrt(Math.Pow(X - pacman.X, 2) + Math.Pow(Y - pacman.Y, 2));
-            if (distance < 8)
-            {
-                var corner = GetScatterCorner(null);
-                return corner;
-            }
-            return (pacman.X, pacman.Y);
         }
     }
 }
